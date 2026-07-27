@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { Logo } from '@/components/common/Logo';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { initialsOf } from '@/lib/utils';
 import type { ManageableGuild } from '@/types';
@@ -53,7 +54,7 @@ function GuildTile({ guild, index }: { guild: ManageableGuild; index: number }) 
                 window.location.href = `${API_URL}/api/auth/invite?guild=${guild.id}`;
               }}
             >
-              <Plus className="h-4 w-4" /> Add NexusBot
+              <Plus className="h-4 w-4" /> Add to server
             </Button>
           )}
         </div>
@@ -71,10 +72,8 @@ export default function ServerSelect() {
     <div className="mx-auto min-h-screen max-w-5xl px-6 py-10">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="brand-gradient grid h-8 w-8 place-items-center rounded-lg text-sm font-bold text-white shadow-glow">
-            N
-          </div>
-          <span className="text-lg font-semibold tracking-tight">NexusBot</span>
+          <Logo className="h-7 w-auto text-white" />
+          <span className="text-lg font-semibold tracking-tight">Loxy&apos;s Portfolios</span>
         </div>
         <Button
           variant="ghost"
@@ -92,7 +91,7 @@ export default function ServerSelect() {
         <h1 className="text-3xl font-bold tracking-tight">
           Hey {user?.globalName ?? user?.username} 👋
         </h1>
-        <p className="mt-2 text-ink-muted">Pick a server to manage, or add NexusBot to a new one.</p>
+        <p className="mt-2 text-ink-muted">Pick a server to manage, or add the bot to a new one.</p>
       </div>
 
       <div className="mt-8">
