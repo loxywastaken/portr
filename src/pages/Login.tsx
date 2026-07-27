@@ -3,6 +3,7 @@ import { AlertTriangle, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { DiscordIcon } from '@/components/common/DiscordIcon';
+import { Logo } from '@/components/common/Logo';
 import { useAuth } from '@/context/AuthContext';
 
 export default function Login() {
@@ -16,9 +17,7 @@ export default function Login() {
     <div className="grid min-h-screen place-items-center px-4">
       <GlassCard className="w-full max-w-md animate-fade-up p-8">
         <div className="flex flex-col items-center text-center">
-          <div className="brand-gradient grid h-12 w-12 place-items-center rounded-2xl text-lg font-bold text-white shadow-glow">
-            N
-          </div>
+          <Logo className="h-11 w-auto text-white" />
           <h1 className="mt-5 text-2xl font-semibold tracking-tight">Welcome back</h1>
           <p className="mt-1.5 text-sm text-ink-muted">
             Sign in with Discord to manage your servers.
