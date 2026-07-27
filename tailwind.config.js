@@ -4,28 +4,29 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Monochrome brand ramp (black & white theme).
         brand: {
-          50: '#eef2ff',
-          100: '#e0e7ff',
-          200: '#c7d2fe',
-          300: '#a5b4fc',
-          400: '#818cf8',
-          500: '#6366f1',
-          600: '#5b57e8',
-          700: '#4f46e5',
-          800: '#4338ca',
-          900: '#3730a3',
+          50: '#f6f6f6',
+          100: '#ececec',
+          200: '#d6d6d6',
+          300: '#b4b4b4',
+          400: '#8f8f8f',
+          500: '#6f6f6f',
+          600: '#585858',
+          700: '#444444',
+          800: '#2f2f2f',
+          900: '#1f1f1f',
         },
-        accent: '#8b5cf6',
+        accent: '#e5e5e5',
         surface: {
-          DEFAULT: '#0e1017',
-          soft: '#12141d',
-          raised: '#171a25',
+          DEFAULT: '#0a0a0b',
+          soft: '#101012',
+          raised: '#17171a',
         },
         ink: {
-          DEFAULT: '#e6e8ee',
-          muted: '#9aa1b2',
-          faint: '#6b7180',
+          DEFAULT: '#ededed',
+          muted: '#9a9a9a',
+          faint: '#6a6a6a',
         },
       },
       fontFamily: {
@@ -38,7 +39,7 @@ export default {
       },
       boxShadow: {
         soft: '0 1px 2px rgba(0,0,0,0.2), 0 8px 24px -12px rgba(0,0,0,0.5)',
-        glow: '0 0 0 1px rgba(99,102,241,0.35), 0 8px 40px -12px rgba(99,102,241,0.45)',
+        glow: '0 0 0 1px rgba(255,255,255,0.16), 0 8px 40px -12px rgba(255,255,255,0.22)',
       },
       backgroundImage: {
         'grid-faint':
