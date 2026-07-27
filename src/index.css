@@ -21,8 +21,8 @@
     @apply bg-surface text-ink antialiased;
     font-feature-settings: 'cv11', 'ss01';
     background-image:
-      radial-gradient(60rem 60rem at 110% -10%, rgba(99, 102, 241, 0.14), transparent 60%),
-      radial-gradient(50rem 50rem at -10% 10%, rgba(139, 92, 246, 0.12), transparent 55%);
+      radial-gradient(60rem 60rem at 110% -10%, rgba(255, 255, 255, 0.06), transparent 60%),
+      radial-gradient(50rem 50rem at -10% 10%, rgba(255, 255, 255, 0.04), transparent 55%);
     background-attachment: fixed;
   }
 
