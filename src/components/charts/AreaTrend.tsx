@@ -28,7 +28,7 @@ function shortDate(value: string | number): string {
  * Single-series trend area. One hue (contrast-validated against the dark
  * surface); recessive grid/axes; crosshair + glass tooltip on hover.
  */
-export function AreaTrend({ data, color = '#818cf8', height = 240, valueSuffix }: AreaTrendProps) {
+export function AreaTrend({ data, color = '#d4d4d4', height = 240, valueSuffix }: AreaTrendProps) {
   const gradientId = `area-${useId().replace(/:/g, '')}`;
 
   return (
