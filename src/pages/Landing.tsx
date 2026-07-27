@@ -65,7 +65,7 @@ export default function Landing() {
       <header className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
         <div className="flex items-center gap-2.5">
           <Logo className="h-7 w-auto text-white" />
-          <span className="text-lg font-semibold tracking-tight">Loxy&apos;s Portfolios</span>
+          <span className="text-lg font-semibold tracking-tight">Nexus Service</span>
         </div>
         {user ? (
           <Link to="/servers">
@@ -145,7 +145,7 @@ export default function Landing() {
       </section>
 
       <footer className="relative z-10 border-t border-white/10 py-8 text-center text-sm text-ink-faint">
-        Built with discord.js, React &amp; TypeScript · Loxy&apos;s Portfolios
+        Built with discord.js, React &amp; TypeScript · Nexus Service
       </footer>
     </div>
   );
