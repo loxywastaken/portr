@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/Button';
 import { GlassCard } from '@/components/ui/GlassCard';
 import { DiscordIcon } from '@/components/common/DiscordIcon';
+import { Logo } from '@/components/common/Logo';
 import { useAuth } from '@/context/AuthContext';
 
 interface Feature {
@@ -63,10 +64,8 @@ export default function Landing() {
 
       <header className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
         <div className="flex items-center gap-2.5">
-          <div className="brand-gradient grid h-8 w-8 place-items-center rounded-lg text-sm font-bold text-white shadow-glow">
-            N
-          </div>
-          <span className="text-lg font-semibold tracking-tight">NexusBot</span>
+          <Logo className="h-7 w-auto text-white" />
+          <span className="text-lg font-semibold tracking-tight">Loxy&apos;s Portfolios</span>
         </div>
         {user ? (
           <Link to="/servers">
@@ -97,8 +96,8 @@ export default function Landing() {
             like a product, not a chore.
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base text-ink-muted sm:text-lg">
-            NexusBot pairs a powerful discord.js bot with a real-time dashboard — moderation,
-            welcomes, analytics and settings, all in one polished control center.
+            A powerful discord.js bot paired with a real-time dashboard — moderation, welcomes,
+            analytics and settings, all in one polished control center.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             {user ? (
@@ -146,7 +145,7 @@ export default function Landing() {
       </section>
 
       <footer className="relative z-10 border-t border-white/10 py-8 text-center text-sm text-ink-faint">
-        Built with discord.js, React &amp; TypeScript · NexusBot
+        Built with discord.js, React &amp; TypeScript · Loxy&apos;s Portfolios
       </footer>
     </div>
   );
