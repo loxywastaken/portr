@@ -73,7 +73,7 @@ export default function ServerSelect() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <Logo className="h-7 w-auto text-white" />
-          <span className="text-lg font-semibold tracking-tight">Loxy&apos;s Portfolios</span>
+          <span className="text-lg font-semibold tracking-tight">Nexus Service</span>
         </div>
         <Button
           variant="ghost"
