@@ -15,7 +15,7 @@ interface BarBreakdownProps {
  */
 export function BarBreakdown({
   items,
-  color = '#6366f1',
+  color = '#d4d4d4',
   emptyLabel = 'No data yet.',
 }: BarBreakdownProps) {
   if (items.length === 0) {
