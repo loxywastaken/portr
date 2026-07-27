@@ -52,7 +52,7 @@ export function Sidebar({ guildId, mobileOpen, onClose }: SidebarProps) {
       >
         <div className="flex h-16 items-center gap-2.5 px-5">
           <Logo className="h-7 w-auto text-white" />
-          <span className="text-lg font-semibold tracking-tight">Loxy&apos;s Portfolios</span>
+          <span className="text-lg font-semibold tracking-tight">Nexus Service</span>
         </div>
 
         <nav className="flex-1 space-y-1 px-3 py-4">
