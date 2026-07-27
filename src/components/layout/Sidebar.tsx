@@ -9,6 +9,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Logo } from '@/components/common/Logo';
 
 interface SidebarProps {
   guildId: string;
@@ -50,10 +51,8 @@ export function Sidebar({ guildId, mobileOpen, onClose }: SidebarProps) {
         )}
       >
         <div className="flex h-16 items-center gap-2.5 px-5">
-          <div className="brand-gradient grid h-8 w-8 place-items-center rounded-lg text-sm font-bold text-white shadow-glow">
-            N
-          </div>
-          <span className="text-lg font-semibold tracking-tight">NexusBot</span>
+          <Logo className="h-7 w-auto text-white" />
+          <span className="text-lg font-semibold tracking-tight">Loxy&apos;s Portfolios</span>
         </div>
 
         <nav className="flex-1 space-y-1 px-3 py-4">
