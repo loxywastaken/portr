@@ -3,6 +3,7 @@ import Landing from './pages/Landing';
 import Login from './pages/Login';
 import AuthCallback from './pages/AuthCallback';
 import ServerSelect from './pages/ServerSelect';
+import Admin from './pages/Admin';
 import NotFound from './pages/NotFound';
 import { ProtectedRoute } from './components/common/ProtectedRoute';
 import { DashboardLayout } from './components/layout/DashboardLayout';
@@ -23,6 +24,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <ServerSelect />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute>
+            <Admin />
           </ProtectedRoute>
         }
       />
