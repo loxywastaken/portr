@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, Crown, LogOut, Plus, ServerCrash } from 'lucide-react';
+import { ArrowRight, Crown, LogOut, Plus, ServerCrash, ShieldCheck } from 'lucide-react';
 import { useGuilds } from '@/hooks/useGuilds';
 import { useAuth } from '@/context/AuthContext';
 import { GlassCard } from '@/components/ui/GlassCard';
@@ -75,16 +75,25 @@ export default function ServerSelect() {
           <Logo className="h-7 w-auto text-white" />
           <span className="text-lg font-semibold tracking-tight">Nexus Service</span>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={async () => {
-            await logout();
-            navigate('/');
-          }}
-        >
-          <LogOut className="h-4 w-4" /> Log out
-        </Button>
+        <div className="flex items-center gap-2">
+          {user?.isOwner && (
+            <Link to="/admin">
+              <Button variant="secondary" size="sm">
+                <ShieldCheck className="h-4 w-4" /> Admin
+              </Button>
+            </Link>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={async () => {
+              await logout();
+              navigate('/');
+            }}
+          >
+            <LogOut className="h-4 w-4" /> Log out
+          </Button>
+        </div>
       </div>
 
       <div className="mt-10">
