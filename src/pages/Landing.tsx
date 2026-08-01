@@ -45,8 +45,8 @@ const features: Feature[] = [
   },
   {
     icon: Bot,
-    title: 'Utility commands',
-    description: 'serverinfo, userinfo, avatar, ping and a self-documenting help command.',
+    title: '50+ commands',
+    description: 'Autorole, self-assign reaction roles, moderation, fun, utilities and premium custom commands — with a built-in content filter.',
   },
   {
     icon: ShieldCheck,
@@ -145,7 +145,11 @@ export default function Landing() {
       </section>
 
       <footer className="relative z-10 border-t border-white/10 py-8 text-center text-sm text-ink-faint">
-        Built with discord.js, React &amp; TypeScript · Nexus Service
+        <div>Built with discord.js, React &amp; TypeScript · Nexus Service</div>
+        <div className="mt-1.5">
+          Made by <span className="font-medium text-ink-muted">zxme</span> &amp;{' '}
+          <span className="font-medium text-ink-muted">veer</span>
+        </div>
       </footer>
     </div>
   );
