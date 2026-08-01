@@ -5,6 +5,7 @@ import {
   Gavel,
   LayoutDashboard,
   Settings,
+  Shield,
   UserPlus,
   type LucideIcon,
 } from 'lucide-react';
@@ -29,6 +30,7 @@ export function Sidebar({ guildId, mobileOpen, onClose }: SidebarProps) {
   const items: NavItem[] = [
     { to: base, label: 'Overview', icon: LayoutDashboard, end: true },
     { to: `${base}/welcome`, label: 'Welcome', icon: UserPlus },
+    { to: `${base}/server`, label: 'Server', icon: Shield },
     { to: `${base}/moderation`, label: 'Moderation', icon: Gavel },
     { to: `${base}/analytics`, label: 'Analytics', icon: BarChart3 },
     { to: `${base}/settings`, label: 'Settings', icon: Settings },
