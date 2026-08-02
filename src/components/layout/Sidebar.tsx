@@ -2,6 +2,7 @@ import { Link, NavLink } from 'react-router-dom';
 import {
   ArrowLeftRight,
   BarChart3,
+  ClipboardList,
   Gavel,
   LayoutDashboard,
   Settings,
@@ -31,6 +32,7 @@ export function Sidebar({ guildId, mobileOpen, onClose }: SidebarProps) {
     { to: base, label: 'Overview', icon: LayoutDashboard, end: true },
     { to: `${base}/welcome`, label: 'Welcome', icon: UserPlus },
     { to: `${base}/server`, label: 'Server', icon: Shield },
+    { to: `${base}/applications`, label: 'Applications', icon: ClipboardList },
     { to: `${base}/moderation`, label: 'Moderation', icon: Gavel },
     { to: `${base}/analytics`, label: 'Analytics', icon: BarChart3 },
     { to: `${base}/settings`, label: 'Settings', icon: Settings },
