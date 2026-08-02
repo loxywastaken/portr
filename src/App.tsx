@@ -13,6 +13,7 @@ import Moderation from './pages/dashboard/Moderation';
 import Analytics from './pages/dashboard/Analytics';
 import Settings from './pages/dashboard/Settings';
 import Server from './pages/dashboard/Server';
+import Applications from './pages/dashboard/Applications';
 
 export default function App() {
   return (
@@ -47,6 +48,7 @@ export default function App() {
         <Route index element={<Overview />} />
         <Route path="welcome" element={<Welcome />} />
         <Route path="server" element={<Server />} />
+        <Route path="applications" element={<Applications />} />
         <Route path="moderation" element={<Moderation />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="settings" element={<Settings />} />
