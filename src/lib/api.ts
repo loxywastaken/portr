@@ -17,9 +17,12 @@ function readCookie(name: string): string | null {
 let inMemoryCsrf: string | null = null;
 
 /**
- * Populated by the auth layer from an API response so CSRF works cross-domain,
- * where the SPA cannot read the API's cookie. Falls back to the cookie for
- * same-site / proxied deployments.
+ * Fallback CSRF token for cross-domain deployments where the SPA cannot read
+ * the API's cookie. Populated by the auth layer from an API response.
+ *
+ * NOTE: this is only a fallback. The server validates the request header
+ * against the CSRF *cookie* the browser sends, so when the cookie is readable
+ * (same-site / proxied) we must echo that live value — see the interceptor.
  */
 export function setCsrfToken(token: string | null): void {
   inMemoryCsrf = token;
@@ -28,7 +31,12 @@ export function setCsrfToken(token: string | null): void {
 api.interceptors.request.use((config) => {
   const method = (config.method ?? 'get').toUpperCase();
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-    const csrf = inMemoryCsrf ?? readCookie('nexus.csrf');
+    // Prefer the live cookie: it is exactly what the browser sends and what the
+    // server compares against, so it always matches. `inMemoryCsrf` is only a
+    // fallback for cross-domain, where the cookie is not JS-readable. (Reading
+    // the cookie first also avoids a token desync from the two parallel token
+    // primers on app load, which was causing intermittent 403s on mutations.)
+    const csrf = readCookie('nexus.csrf') ?? inMemoryCsrf;
     if (csrf && config.headers) config.headers.set('x-csrf-token', csrf);
   }
   return config;
