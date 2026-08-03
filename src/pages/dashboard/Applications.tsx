@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { ClipboardList, GripVertical, Plus, Save, Trash2, X } from 'lucide-react';
+import { ClipboardList, GripVertical, Plus, Save, Send, Trash2, X } from 'lucide-react';
 import { PageTransition } from '@/components/common/PageTransition';
 import { PageHeader } from '@/components/common/PageHeader';
 import { GlassCard } from '@/components/ui/GlassCard';
@@ -17,6 +17,7 @@ import {
   useApplications,
   useDeleteApplication,
   useSaveApplication,
+  useSendApplicationPanel,
   type Application,
   type ApplicationInput,
 } from '@/hooks/useApplications';
@@ -40,9 +41,11 @@ export default function Applications() {
   const roles = useGuildRoles(guildId);
   const save = useSaveApplication(guildId);
   const del = useDeleteApplication(guildId);
+  const sendPanel = useSendApplicationPanel(guildId);
   const toast = useToast();
 
   const [editing, setEditing] = useState<{ id?: string; draft: ApplicationInput } | null>(null);
+  const [panelChannel, setPanelChannel] = useState('');
 
   const channelOpts = [{ value: '', label: '— select a channel —' }, ...(channels.data ?? []).map((c) => ({ value: c.id, label: `#${c.name}` }))];
   const roleOpts = [{ value: '', label: 'None' }, ...(roles.data ?? []).map((r) => ({ value: r.id, label: r.name }))];
@@ -94,6 +97,16 @@ export default function Applications() {
       await del.mutateAsync(id);
       toast('Application deleted.');
       setEditing(null);
+    } catch (err) {
+      toast(extractApiError(err).message, 'error');
+    }
+  };
+
+  const onSendPanel = async () => {
+    if (!panelChannel) return toast('Pick a channel for the panel.', 'error');
+    try {
+      await sendPanel.mutateAsync({ channelId: panelChannel });
+      toast('Apply panel posted.');
     } catch (err) {
       toast(extractApiError(err).message, 'error');
     }
@@ -223,6 +236,23 @@ export default function Applications() {
           </Button>
         }
       />
+
+      {apps.data && apps.data.length > 0 && (
+        <GlassCard className="mb-4 flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold">Post an apply panel</h2>
+            <p className="text-xs text-ink-faint">
+              Members click a button to apply — no need to type <code className="rounded bg-white/10 px-1 py-0.5">/apply</code>.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Select value={panelChannel} onChange={setPanelChannel} options={channelOpts} className="w-56" />
+            <Button variant="secondary" onClick={onSendPanel} loading={sendPanel.isPending}>
+              <Send className="h-4 w-4" /> Send panel
+            </Button>
+          </div>
+        </GlassCard>
+      )}
 
       {apps.isLoading ? (
         <div className="grid gap-3 sm:grid-cols-2">
