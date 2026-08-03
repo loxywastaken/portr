@@ -51,3 +51,10 @@ export function useDeleteApplication(guildId: string) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['guild', guildId, 'applications'] }),
   });
 }
+
+export function useSendApplicationPanel(guildId: string) {
+  return useMutation({
+    mutationFn: async (input: { channelId: string; title?: string; description?: string }) =>
+      (await api.post(`/guilds/${guildId}/applications/panel`, input)).data,
+  });
+}

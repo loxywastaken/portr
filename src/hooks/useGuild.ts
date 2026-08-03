@@ -24,6 +24,17 @@ export function useGuildChannels(guildId: string) {
   });
 }
 
+export function useGuildCategories(guildId: string) {
+  return useQuery({
+    queryKey: ['guild', guildId, 'categories'],
+    queryFn: async () => {
+      const { data } = await api.get<{ categories: ChannelSummary[] }>(`/guilds/${guildId}/categories`);
+      return data.categories;
+    },
+    enabled: Boolean(guildId),
+  });
+}
+
 export function useGuildRoles(guildId: string) {
   return useQuery({
     queryKey: ['guild', guildId, 'roles'],
