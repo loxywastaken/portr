@@ -6,6 +6,7 @@ export interface AuthUser {
   avatar: string | null;
   email: string | null;
   isOwner: boolean;
+  isPremium?: boolean;
   lastLoginAt: string;
 }
 
