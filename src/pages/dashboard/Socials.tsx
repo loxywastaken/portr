@@ -33,7 +33,7 @@ const PLATFORM_LABEL: Record<string, string> = {
 };
 
 const HINTS: Record<FeedPlatform, { placeholder: string; hint: string }> = {
-  youtube: { placeholder: 'UCxxxxxxxxxxxxxxxxxxxxxx  or  youtube.com/channel/UC…', hint: 'Paste the channel ID (starts with "UC…") or a /channel/UC… URL.' },
+  youtube: { placeholder: 'youtube.com/@YourChannel  (or a channel URL / ID)', hint: "Paste your channel URL, @handle, or channel ID — the bot finds the right feed automatically." },
   twitter: { placeholder: 'https://your-rss-bridge/…/twitter/user/handle', hint: 'X has no official free feed — paste an RSS-bridge URL (e.g. from an RSSHub/Nitter instance).' },
   instagram: { placeholder: 'https://your-rss-bridge/…/instagram/user', hint: 'Instagram has no official free feed — paste an RSS-bridge URL.' },
   tiktok: { placeholder: 'https://your-rss-bridge/…/tiktok/user', hint: 'TikTok has no official free feed — paste an RSS-bridge URL.' },
