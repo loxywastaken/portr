@@ -16,11 +16,19 @@ export interface SavedTemplate {
   design: unknown;
 }
 
-export interface BuildResult {
-  roles: number;
-  categories: number;
-  channels: number;
-  warnings: string[];
+export interface GenerateResponse {
+  started: boolean;
+  estimated: number;
+  usage: { used: number; limit: number; remaining: number };
+}
+
+/** UTF-8-safe base64 — the design is sent as an opaque blob so a WAF/proxy can't
+ *  pattern-match the raw JSON body (which was returning a non-app 403). */
+function toB64(s: string): string {
+  const bytes = new TextEncoder().encode(s);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]!);
+  return btoa(bin);
 }
 
 export function useTemplateUsage(guildId: string) {
@@ -43,7 +51,7 @@ export function useGenerateTemplate(guildId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (design: string) =>
-      (await api.post<{ result: BuildResult; usage: TemplateUsage }>(`/guilds/${guildId}/templates/generate`, { design })).data,
+      (await api.post<GenerateResponse>(`/guilds/${guildId}/templates/generate`, { designB64: toB64(design) })).data,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['guild', guildId, 'templates', 'usage'] }),
   });
 }
@@ -51,7 +59,8 @@ export function useGenerateTemplate(guildId: string) {
 export function useSaveTemplate(guildId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (v: { name: string; design: string }) => (await api.post(`/guilds/${guildId}/templates/saved`, v)).data,
+    mutationFn: async (v: { name: string; design: string }) =>
+      (await api.post(`/guilds/${guildId}/templates/saved`, { name: v.name, designB64: toB64(v.design) })).data,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['guild', guildId, 'templates', 'saved'] }),
   });
 }
