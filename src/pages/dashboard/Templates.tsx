@@ -15,7 +15,6 @@ import {
   useSaveTemplate,
   useSavedTemplates,
   useTemplateUsage,
-  type BuildResult,
   type SavedTemplate,
 } from '@/hooks/useTemplates';
 import { extractApiError } from '@/lib/api';
@@ -31,7 +30,7 @@ export default function Templates() {
 
   const [text, setText] = useState('');
   const [saveName, setSaveName] = useState('');
-  const [result, setResult] = useState<BuildResult | null>(null);
+  const [started, setStarted] = useState<{ estimated: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const u = usage.data;
@@ -51,12 +50,11 @@ export default function Templates() {
 
   const onGenerate = async () => {
     if (!text.trim()) return toast('Paste or load a design first.', 'error');
-    setResult(null);
+    setStarted(null);
     try {
       const res = await generate.mutateAsync(text);
-      setResult(res.result);
-      const w = res.result.warnings.length ? ` (${res.result.warnings.length} skipped)` : '';
-      toast(`Built ${res.result.channels} channels, ${res.result.categories} categories, ${res.result.roles} roles${w}.`);
+      setStarted({ estimated: res.estimated });
+      toast(`Building your template (~${res.estimated} items) in this server — the bot will DM you a summary when it's done.`);
     } catch (err) {
       toast(extractApiError(err).message, 'error');
     }
@@ -148,19 +146,12 @@ export default function Templates() {
             {remaining <= 0 && !usage.isLoading && (
               <p className="mt-2 text-xs text-amber-300/80">You've hit today's limit — it resets at UTC midnight.</p>
             )}
-            {result && (
+            {started && (
               <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.06] p-3 text-sm">
-                <p className="font-medium text-emerald-300">Built ✓</p>
+                <p className="font-medium text-emerald-300">Building… 🛠️</p>
                 <p className="mt-1 text-ink-muted">
-                  {result.channels} channels · {result.categories} categories · {result.roles} roles
+                  Creating ~{started.estimated} items in this server. Large templates take a minute or two — the bot will DM you a summary when it's done.
                 </p>
-                {result.warnings.length > 0 && (
-                  <ul className="mt-2 list-inside list-disc text-xs text-amber-300/80">
-                    {result.warnings.slice(0, 5).map((w, i) => (
-                      <li key={i}>{w}</li>
-                    ))}
-                  </ul>
-                )}
               </div>
             )}
           </GlassCard>
