@@ -33,12 +33,15 @@ const PLATFORM_LABEL: Record<string, string> = {
 };
 
 const HINTS: Record<FeedPlatform, { placeholder: string; hint: string }> = {
-  youtube: { placeholder: 'youtube.com/@YourChannel  (or a channel URL / ID)', hint: "Paste your channel URL, @handle, or channel ID — the bot finds the right feed automatically." },
-  twitter: { placeholder: 'https://your-rss-bridge/…/twitter/user/handle', hint: 'X has no official free feed — paste an RSS-bridge URL (e.g. from an RSSHub/Nitter instance).' },
-  instagram: { placeholder: 'https://your-rss-bridge/…/instagram/user', hint: 'Instagram has no official free feed — paste an RSS-bridge URL.' },
-  tiktok: { placeholder: 'https://your-rss-bridge/…/tiktok/user', hint: 'TikTok has no official free feed — paste an RSS-bridge URL.' },
-  rss: { placeholder: 'https://example.com/feed.xml', hint: 'Any standard RSS or Atom feed URL (blogs, Reddit, Mastodon, …).' },
+  youtube: { placeholder: 'youtube.com/@YourChannel  (or a channel URL / ID)', hint: 'Paste your channel URL, @handle, or channel ID — the bot finds the right feed automatically.' },
+  twitter: { placeholder: 'https://rss.app/feeds/xxxxxxxx.xml', hint: 'X has no free feed — make one with the generator below, then paste its feed link here.' },
+  instagram: { placeholder: 'https://rss.app/feeds/xxxxxxxx.xml', hint: 'Instagram has no free feed — make one with the generator below, then paste its feed link here.' },
+  tiktok: { placeholder: 'https://rss.app/feeds/xxxxxxxx.xml', hint: 'TikTok has no free feed — make one with the generator below, then paste its feed link here.' },
+  rss: { placeholder: 'https://example.com/feed.xml', hint: 'Any standard RSS or Atom feed URL — blogs, Reddit, YouTube, Mastodon, Twitch and more.' },
 };
+
+/** Platforms with no free feed the bot can read — we guide the user to a feed generator. */
+const NEEDS_GENERATOR = new Set<FeedPlatform>(['twitter', 'instagram', 'tiktok']);
 
 export default function Socials() {
   const { guildId = '' } = useParams();
@@ -139,9 +142,25 @@ export default function Socials() {
                 <Select value={mentionRoleId} onChange={setMentionRoleId} options={roleOpts} className="w-44" />
               </Field>
             </div>
-            <Field label="Channel ID / feed URL" hint={HINTS[platform].hint}>
+            <Field
+              label={platform === 'youtube' ? 'Channel URL, @handle or ID' : platform === 'rss' ? 'Feed URL' : 'Feed URL (from a generator)'}
+              hint={HINTS[platform].hint}
+            >
               <Input value={input} onChange={(e) => setInput(e.target.value)} className="w-full max-w-xl" placeholder={HINTS[platform].placeholder} />
             </Field>
+            {NEEDS_GENERATOR.has(platform) && (
+              <div className="rounded-xl border border-amber-400/20 bg-amber-400/[0.06] p-3 text-xs text-ink-muted">
+                <p className="font-medium text-amber-200/90">{PLATFORM_LABEL[platform] ?? platform} doesn't offer a free feed the bot can read.</p>
+                <p className="mt-1">
+                  Quick fix: create a free feed for your profile with a generator like{' '}
+                  <a href="https://rss.app" target="_blank" rel="noreferrer" className="text-ink underline decoration-white/30 hover:decoration-white">
+                    rss.app
+                  </a>{' '}
+                  (free tier, ~2 min), copy the feed link it gives you, and paste it above. The bot reads that link and auto-posts new content here — with the{' '}
+                  {PLATFORM_LABEL[platform] ?? platform} badge and your optional role ping.
+                </p>
+              </div>
+            )}
             <Field label="Label (optional)" hint="Shown on each post, e.g. your brand name.">
               <Input value={label} maxLength={80} onChange={(e) => setLabel(e.target.value)} className="w-64" placeholder="My Channel" />
             </Field>
