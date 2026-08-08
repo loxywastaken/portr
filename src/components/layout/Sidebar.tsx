@@ -11,6 +11,7 @@ import {
   Settings,
   Shield,
   Ticket,
+  Trophy,
   UserPlus,
   type LucideIcon,
 } from 'lucide-react';
@@ -41,6 +42,7 @@ export function Sidebar({ guildId, mobileOpen, onClose }: SidebarProps) {
     { to: `${base}/giveaways`, label: 'Giveaways', icon: Gift },
     { to: `${base}/templates`, label: 'Templates', icon: LayoutTemplate },
     { to: `${base}/socials`, label: 'Social Posts', icon: Megaphone },
+    { to: `${base}/stats`, label: 'User Stats', icon: Trophy },
     { to: `${base}/moderation`, label: 'Moderation', icon: Gavel },
     { to: `${base}/analytics`, label: 'Analytics', icon: BarChart3 },
     { to: `${base}/settings`, label: 'Settings', icon: Settings },
