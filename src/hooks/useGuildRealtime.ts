@@ -25,10 +25,16 @@ export function useGuildRealtime(guildId: string): void {
     const onMember = () => {
       queryClient.invalidateQueries({ queryKey: ['guild', guildId, 'overview'] });
     };
+    // Realtime message stats — refetches only when the User Stats page is open
+    // (invalidate only refetches active observers), so it's free otherwise.
+    const onStatsMessage = () => {
+      queryClient.invalidateQueries({ queryKey: ['guild', guildId, 'userstats'] });
+    };
 
     socket.on('moderation:case', onCase);
     socket.on('member:join', onMember);
     socket.on('member:leave', onMember);
+    socket.on('stats:message', onStatsMessage);
 
     return () => {
       socket.emit('guild:unsubscribe', guildId);
@@ -36,6 +42,7 @@ export function useGuildRealtime(guildId: string): void {
       socket.off('moderation:case', onCase);
       socket.off('member:join', onMember);
       socket.off('member:leave', onMember);
+      socket.off('stats:message', onStatsMessage);
     };
   }, [guildId, queryClient]);
 }
