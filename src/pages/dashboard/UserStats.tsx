@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Activity, Crown, MessageSquare, Search, Trophy, Users } from 'lucide-react';
 import { PageTransition } from '@/components/common/PageTransition';
@@ -10,33 +10,15 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { AreaTrend } from '@/components/charts/AreaTrend';
 import { BarBreakdown } from '@/components/charts/BarBreakdown';
 import { useUserStats, type LeaderEntry } from '@/hooks/useUserStats';
-import { getSocket } from '@/lib/socket';
 import { cn, formatNumber, formatRelativeTime, userAvatarUrl } from '@/lib/utils';
 
-/** A small pill reflecting the live Socket.IO connection (stats update in realtime). */
-function LiveBadge() {
-  const [live, setLive] = useState(() => getSocket().connected);
-  useEffect(() => {
-    const socket = getSocket();
-    const on = () => setLive(true);
-    const off = () => setLive(false);
-    socket.on('connect', on);
-    socket.on('disconnect', off);
-    setLive(socket.connected);
-    return () => {
-      socket.off('connect', on);
-      socket.off('disconnect', off);
-    };
-  }, []);
+/** Live pill — the page auto-refreshes every few seconds so stats stay current;
+ *  the dot ripples while a refresh is in flight. */
+function LiveBadge({ updating }: { updating: boolean }) {
   return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium',
-        live ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300' : 'border-white/10 bg-white/5 text-ink-faint',
-      )}
-    >
-      <span className={cn('h-1.5 w-1.5 rounded-full', live ? 'animate-pulse bg-emerald-400' : 'bg-ink-faint')} />
-      {live ? 'Live' : 'Offline'}
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-xs font-medium text-emerald-300">
+      <span className={cn('h-1.5 w-1.5 rounded-full bg-emerald-400', updating ? 'animate-ping' : 'animate-pulse')} />
+      Live
     </span>
   );
 }
@@ -74,7 +56,7 @@ function LeaderRow({ entry }: { entry: LeaderEntry }) {
 
 export default function UserStats() {
   const { guildId = '' } = useParams();
-  const { data, isLoading } = useUserStats(guildId);
+  const { data, isLoading, isFetching } = useUserStats(guildId);
   const [query, setQuery] = useState('');
 
   const board = data?.leaderboard ?? [];
@@ -94,7 +76,7 @@ export default function UserStats() {
         title="User Stats"
         description="Message activity across your server — who's talking and how much."
         icon={Trophy}
-        actions={<LiveBadge />}
+        actions={<LiveBadge updating={isFetching} />}
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
