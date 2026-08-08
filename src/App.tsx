@@ -18,6 +18,7 @@ import Tickets from './pages/dashboard/Tickets';
 import Giveaways from './pages/dashboard/Giveaways';
 import Templates from './pages/dashboard/Templates';
 import Socials from './pages/dashboard/Socials';
+import UserStats from './pages/dashboard/UserStats';
 
 export default function App() {
   return (
@@ -57,6 +58,7 @@ export default function App() {
         <Route path="giveaways" element={<Giveaways />} />
         <Route path="templates" element={<Templates />} />
         <Route path="socials" element={<Socials />} />
+        <Route path="stats" element={<UserStats />} />
         <Route path="moderation" element={<Moderation />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="settings" element={<Settings />} />
