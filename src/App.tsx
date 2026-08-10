@@ -19,6 +19,8 @@ import Giveaways from './pages/dashboard/Giveaways';
 import Templates from './pages/dashboard/Templates';
 import Socials from './pages/dashboard/Socials';
 import UserStats from './pages/dashboard/UserStats';
+import Automod from './pages/dashboard/Automod';
+import Commands from './pages/dashboard/Commands';
 
 export default function App() {
   return (
@@ -59,6 +61,8 @@ export default function App() {
         <Route path="templates" element={<Templates />} />
         <Route path="socials" element={<Socials />} />
         <Route path="stats" element={<UserStats />} />
+        <Route path="automod" element={<Automod />} />
+        <Route path="commands" element={<Commands />} />
         <Route path="moderation" element={<Moderation />} />
         <Route path="analytics" element={<Analytics />} />
         <Route path="settings" element={<Settings />} />
