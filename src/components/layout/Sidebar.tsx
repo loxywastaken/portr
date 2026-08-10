@@ -2,6 +2,7 @@ import { Link, NavLink } from 'react-router-dom';
 import {
   ArrowLeftRight,
   BarChart3,
+  BookOpen,
   ClipboardList,
   Gavel,
   Gift,
@@ -10,6 +11,7 @@ import {
   Megaphone,
   Settings,
   Shield,
+  ShieldCheck,
   Ticket,
   Trophy,
   UserPlus,
@@ -44,7 +46,9 @@ export function Sidebar({ guildId, mobileOpen, onClose }: SidebarProps) {
     { to: `${base}/socials`, label: 'Social Posts', icon: Megaphone },
     { to: `${base}/stats`, label: 'User Stats', icon: Trophy },
     { to: `${base}/moderation`, label: 'Moderation', icon: Gavel },
+    { to: `${base}/automod`, label: 'Auto Mod', icon: ShieldCheck },
     { to: `${base}/analytics`, label: 'Analytics', icon: BarChart3 },
+    { to: `${base}/commands`, label: 'Commands', icon: BookOpen },
     { to: `${base}/settings`, label: 'Settings', icon: Settings },
   ];
 
