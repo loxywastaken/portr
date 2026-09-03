@@ -20,6 +20,9 @@ import Templates from './pages/dashboard/Templates';
 import Socials from './pages/dashboard/Socials';
 import UserStats from './pages/dashboard/UserStats';
 import Automod from './pages/dashboard/Automod';
+import MassUnban from './pages/dashboard/MassUnban';
+import Logging from './pages/dashboard/Logging';
+import AuditLog from './pages/dashboard/AuditLog';
 import Commands from './pages/dashboard/Commands';
 
 export default function App() {
@@ -62,6 +65,9 @@ export default function App() {
         <Route path="socials" element={<Socials />} />
         <Route path="stats" element={<UserStats />} />
         <Route path="automod" element={<Automod />} />
+        <Route path="mass-unban" element={<MassUnban />} />
+        <Route path="logging" element={<Logging />} />
+        <Route path="audit-log" element={<AuditLog />} />
         <Route path="commands" element={<Commands />} />
         <Route path="moderation" element={<Moderation />} />
         <Route path="analytics" element={<Analytics />} />

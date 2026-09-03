@@ -4,7 +4,9 @@ import {
   ArrowRight,
   BarChart3,
   Bot,
+  FileText,
   ShieldCheck,
+  ShieldOff,
   Sparkles,
   Zap,
   Gavel,
@@ -29,6 +31,11 @@ const features: Feature[] = [
     description: 'Ban, kick, timeout, warn, purge and lockdown — every action logged as a numbered case.',
   },
   {
+    icon: ShieldOff,
+    title: 'Mass unban',
+    description: 'Bulk unban users by browsing the ban list or pasting IDs — clean up raid bans in seconds.',
+  },
+  {
     icon: Sparkles,
     title: 'Welcome system',
     description: 'Greet new members with rich embeds, a live preview and dynamic variables.',
@@ -39,14 +46,19 @@ const features: Feature[] = [
     description: 'Command usage, member growth and moderation trends in interactive charts.',
   },
   {
+    icon: FileText,
+    title: 'Logging & audit trail',
+    description: 'Route mod, message, member and join/leave logs to separate channels — plus a full audit log.',
+  },
+  {
     icon: Zap,
     title: 'Live dashboard',
     description: 'Bot ping, uptime, CPU and RAM streamed to your browser over WebSockets.',
   },
   {
     icon: Bot,
-    title: '50+ commands',
-    description: 'Autorole, self-assign reaction roles, moderation, fun, utilities and premium custom commands — with a built-in content filter.',
+    title: '70+ commands',
+    description: 'Moderation, fun, levels, tickets, giveaways, utilities and premium custom commands — with a built-in content filter.',
   },
   {
     icon: ShieldCheck,

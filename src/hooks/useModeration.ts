@@ -11,7 +11,8 @@ export type ModerationActionPayload =
   | { action: 'clear'; channelId: string; amount: number }
   | { action: 'slowmode'; channelId: string; seconds: number }
   | { action: 'lock'; channelId: string; reason?: string }
-  | { action: 'unlock'; channelId: string; reason?: string };
+  | { action: 'unlock'; channelId: string; reason?: string }
+  | { action: 'massunban'; userIds: string[]; reason?: string };
 
 export function useModerationCases(guildId: string, limit = 25) {
   return useQuery({

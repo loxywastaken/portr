@@ -22,6 +22,7 @@ const ACTION_LABELS: Record<ModerationActionType, string> = {
   slowmode: 'Slowmode',
   lock: 'Locks',
   unlock: 'Unlocks',
+  massunban: 'Mass unbans',
 };
 
 function ChartCard({ title, children }: { title: string; children: ReactNode }) {

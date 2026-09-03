@@ -80,7 +80,33 @@ export type ModerationActionType =
   | 'clear'
   | 'slowmode'
   | 'lock'
-  | 'unlock';
+  | 'unlock'
+  | 'massunban';
+
+export interface BanEntry {
+  userId: string;
+  tag: string | null;
+  reason: string | null;
+}
+
+export interface LoggingSettings {
+  modLogChannelId: string | null;
+  messageLogChannelId: string | null;
+  memberLogChannelId: string | null;
+  joinLeaveChannelId: string | null;
+}
+
+export interface AuditEntry {
+  _id: string;
+  guildId: string;
+  action: string;
+  performedBy: string;
+  performedByTag: string;
+  targetId: string | null;
+  targetTag: string | null;
+  details: string;
+  createdAt: string;
+}
 
 export interface ModerationCase {
   _id: string;

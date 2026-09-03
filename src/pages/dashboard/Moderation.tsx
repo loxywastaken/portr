@@ -36,8 +36,8 @@ const USER_ACTIONS = new Set(['ban', 'kick', 'timeout', 'warn', 'unban']);
 const CHANNEL_ACTIONS = new Set(['clear', 'slowmode', 'lock', 'unlock']);
 
 function badgeVariant(action: ModerationActionType) {
-  if (action === 'ban' || action === 'kick') return 'danger' as const;
-  if (action === 'timeout' || action === 'warn' || action === 'slowmode' || action === 'lock')
+  if (action === 'ban' || action === 'kick' || action === 'massunban') return 'danger' as const;
+  if (action === 'timeout' || action === 'warn' || action === 'slowmode' || action === 'lock' || action === 'clear')
     return 'warning' as const;
   if (action === 'unban' || action === 'unlock') return 'success' as const;
   return 'default' as const;

@@ -18,10 +18,10 @@ export default function Commands() {
     const filtered = query
       ? cmds.filter(
           (c) =>
-            c.name.includes(query) ||
+            c.name.toLowerCase().includes(query) ||
             c.description.toLowerCase().includes(query) ||
             c.category.toLowerCase().includes(query) ||
-            c.subcommands.some((s) => s.name.includes(query)),
+            c.subcommands.some((s) => s.name.toLowerCase().includes(query) || s.description.toLowerCase().includes(query)),
         )
       : cmds;
     const map = new Map<string, CommandInfo[]>();
