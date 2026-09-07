@@ -44,7 +44,7 @@ const definitions: Record<
       { key: 'joinThreshold', label: 'Join threshold', min: 3, max: 50 },
       { key: 'timeWindow', label: 'Join window (seconds)', min: 5, max: 300 },
       { key: 'minAccountAge', label: 'Minimum account age (hours)', min: 1, max: 8760 },
-      { key: 'actionDuration', label: 'Timeout duration (minutes)', min: 1, max: 40320 },
+      { key: 'actionDuration', label: 'Timeout duration (minutes)', min: 0, max: 40320, hint: '0 uses the bot default of 60 minutes.' },
       { key: 'lockdownDuration', label: 'Automatic lockdown (minutes)', min: 1, max: 1440 },
       { key: 'noAvatarScore', label: 'No avatar score', min: 0, max: 1000 },
       { key: 'newAccountScore', label: 'New account score', min: 0, max: 1000 },
