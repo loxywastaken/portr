@@ -47,6 +47,7 @@ export function Sidebar({ guildId, mobileOpen, onClose }: SidebarProps) {
     { to: `${base}/stats`, label: 'User Stats', icon: Trophy },
     { to: `${base}/moderation`, label: 'Moderation', icon: Gavel },
     { to: `${base}/automod`, label: 'Auto Mod', icon: ShieldCheck },
+    { to: `${base}/antiraid`, label: 'Anti-Raid', icon: ShieldCheck },
     { to: `${base}/analytics`, label: 'Analytics', icon: BarChart3 },
     { to: `${base}/commands`, label: 'Commands', icon: BookOpen },
     { to: `${base}/settings`, label: 'Settings', icon: Settings },
@@ -73,7 +74,7 @@ export function Sidebar({ guildId, mobileOpen, onClose }: SidebarProps) {
           <span className="text-lg font-semibold tracking-tight">Nexus Service</span>
         </div>
 
-        <nav className="flex-1 space-y-1 px-3 py-4">
+        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {items.map((item) => (
             <NavLink
               key={item.to}
