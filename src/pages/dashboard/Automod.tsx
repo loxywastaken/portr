@@ -114,7 +114,7 @@ export default function Automod() {
   const contentIntent = data?.contentIntent ?? false;
   const patch = (p: Partial<AutoModSettings>) => setForm((f) => (f ? { ...f, ...p } : f));
   const patchRule = (key: RuleKey, p: Record<string, unknown>) =>
-    setForm((f) => (f ? ({ ...f, [key]: { ...(f[key] as Record<string, unknown>), ...p } } as AutoModSettings) : f));
+    setForm((f) => (f ? ({ ...f, [key]: { ...f[key], ...p } } as AutoModSettings) : f));
 
   async function save() {
     if (!form) return;
