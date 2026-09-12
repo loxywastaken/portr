@@ -21,7 +21,6 @@ import Socials from './pages/dashboard/Socials';
 import UserStats from './pages/dashboard/UserStats';
 import Automod from './pages/dashboard/Automod';
 import Commands from './pages/dashboard/Commands';
-import AntiRaid from './pages/dashboard/AntiRaid';
 
 export default function App() {
   return (
@@ -63,7 +62,6 @@ export default function App() {
         <Route path="socials" element={<Socials />} />
         <Route path="stats" element={<UserStats />} />
         <Route path="automod" element={<Automod />} />
-        <Route path="antiraid" element={<AntiRaid />} />
         <Route path="commands" element={<Commands />} />
         <Route path="moderation" element={<Moderation />} />
         <Route path="analytics" element={<Analytics />} />
