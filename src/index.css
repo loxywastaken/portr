@@ -21,8 +21,8 @@
     @apply bg-surface text-ink antialiased;
     font-feature-settings: 'cv11', 'ss01';
     background-image:
-      radial-gradient(50rem 38rem at 85% -10%, rgba(119, 109, 232, 0.11), transparent 65%),
-      radial-gradient(42rem 38rem at -15% 15%, rgba(70, 104, 151, 0.08), transparent 65%);
+      radial-gradient(60rem 60rem at 110% -10%, rgba(255, 255, 255, 0.06), transparent 60%),
+      radial-gradient(50rem 50rem at -10% 10%, rgba(255, 255, 255, 0.04), transparent 55%);
     background-attachment: fixed;
   }
 
@@ -33,11 +33,11 @@
 
 @layer components {
   .glass {
-    @apply border border-white/[0.08] bg-surface-soft/80;
+    @apply border border-white/10 bg-white/[0.04] backdrop-blur-xl;
   }
 
   .glass-raised {
-    @apply border border-white/[0.09] bg-surface-soft/90 shadow-soft;
+    @apply border border-white/10 bg-white/[0.05] shadow-soft backdrop-blur-xl;
   }
 
   .text-gradient {
