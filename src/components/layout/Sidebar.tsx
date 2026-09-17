@@ -63,17 +63,22 @@ export function Sidebar({ guildId, mobileOpen, onClose }: SidebarProps) {
       />
       <aside
         className={cn(
-          'fixed z-40 flex h-screen w-64 flex-col border-r border-white/10 bg-surface-soft/80 backdrop-blur-xl transition-transform duration-300',
+          'fixed z-40 flex h-screen w-64 flex-col border-r border-white/[0.08] bg-surface-soft/95 backdrop-blur-xl transition-transform duration-300',
           'lg:sticky lg:top-0 lg:translate-x-0',
           mobileOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        <div className="flex h-16 items-center gap-2.5 px-5">
-          <Logo className="h-7 w-auto text-white" />
-          <span className="text-lg font-semibold tracking-tight">Nexus Service</span>
+        <div className="flex h-20 items-center gap-3 border-b border-white/[0.07] px-5">
+          <div className="grid h-9 w-9 place-items-center rounded-xl bg-brand-500/15 ring-1 ring-brand-400/20">
+            <Logo className="h-6 w-auto text-brand-200" />
+          </div>
+          <div className="leading-tight">
+            <span className="text-[15px] font-semibold tracking-tight">Nexus Service</span>
+            <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.18em] text-ink-faint">Control center</p>
+          </div>
         </div>
 
-        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
+        <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3 py-5">
           {items.map((item) => (
             <NavLink
               key={item.to}
@@ -82,14 +87,14 @@ export function Sidebar({ guildId, mobileOpen, onClose }: SidebarProps) {
               onClick={onClose}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition',
+                  'flex items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition',
                   isActive
-                    ? 'bg-brand-500/15 text-white ring-1 ring-inset ring-brand-500/25'
-                    : 'text-ink-muted hover:bg-white/5 hover:text-ink',
+                    ? 'bg-brand-500/15 text-brand-100 ring-1 ring-inset ring-brand-400/20'
+                    : 'text-ink-muted hover:bg-white/[0.05] hover:text-ink',
                 )
               }
             >
-              <item.icon className="h-[18px] w-[18px]" />
+              <item.icon className="h-[17px] w-[17px]" />
               {item.label}
             </NavLink>
           ))}

@@ -15,6 +15,7 @@ export interface Application {
   questions: AppQuestion[];
   reviewChannelId: string | null;
   acceptRoleId: string | null;
+  acceptRoleIds: string[];
   reviewerRoleId: string | null;
   pingRoleId: string | null;
   enabled: boolean;
