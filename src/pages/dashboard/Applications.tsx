@@ -199,7 +199,7 @@ export default function Applications() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-base font-semibold">Questions</h2>
-                <p className="mt-0.5 text-xs text-ink-muted">Add as many questions as you need. Applicants answer five at a time in Discord.</p>
+                <p className="mt-0.5 text-xs text-ink-muted">Add as many questions as you need. Applicants answer five at a time in Discord; long questions appear before the answer form.</p>
               </div>
               <Button variant="secondary" size="sm" onClick={addQuestion}>
                 <Plus className="h-4 w-4" /> Add question
@@ -223,7 +223,7 @@ export default function Applications() {
                   <div className="flex items-start gap-2">
                     <span className="mt-1.5 grid h-6 w-6 shrink-0 place-items-center rounded-md bg-white/[0.07] text-xs font-semibold text-ink-muted">{i + 1}</span>
                     <div className="min-w-0 flex-1">
-                      <Input value={q.label} maxLength={45} onChange={(e) => patchQuestion(i, { label: e.target.value })} placeholder={`Question ${i + 1} (e.g. Why do you want to join staff?)`} />
+                      <Textarea value={q.label} rows={3} onChange={(e) => patchQuestion(i, { label: e.target.value })} placeholder={`Question ${i + 1} (e.g. Why do you want to join staff?)`} />
                       <div className="mt-2 flex flex-wrap items-center gap-3">
                         <Select
                           value={q.style}
