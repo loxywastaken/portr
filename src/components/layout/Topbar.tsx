@@ -18,7 +18,7 @@ export function Topbar({ overview, onMenu }: TopbarProps) {
   const navigate = useNavigate();
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b border-white/[0.08] bg-surface/90 px-4 backdrop-blur-xl sm:px-6">
+    <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-3 border-b border-white/10 bg-surface/70 px-4 backdrop-blur-xl sm:px-6">
       <div className="flex min-w-0 items-center gap-3">
         <button
           onClick={onMenu}
@@ -29,7 +29,7 @@ export function Topbar({ overview, onMenu }: TopbarProps) {
         </button>
 
         {overview ? (
-          <div className="flex min-w-0 items-center gap-3">
+          <div className="flex min-w-0 items-center gap-2.5">
             {overview.icon ? (
               <img src={overview.icon} className="h-8 w-8 rounded-lg" alt="" />
             ) : (
