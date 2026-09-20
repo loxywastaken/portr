@@ -73,7 +73,7 @@ export default function Applications() {
     setEditing((e) => (e ? { ...e, draft: { ...e.draft, questions: e.draft.questions.map((q, idx) => (idx === i ? { ...q, ...p } : q)) } } : e));
   const addQuestion = () =>
     setEditing((e) =>
-      !e || e.draft.questions.length >= 25 ? e : { ...e, draft: { ...e.draft, questions: [...e.draft.questions, { label: '', style: 'paragraph', required: true, maxLength: 1000 }] } },
+      !e ? e : { ...e, draft: { ...e.draft, questions: [...e.draft.questions, { label: '', style: 'paragraph', required: true, maxLength: 1000 }] } },
     );
   const addAcceptRole = (id: string) => {
     if (!id) return;
@@ -199,14 +199,14 @@ export default function Applications() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-base font-semibold">Questions</h2>
-                <p className="mt-0.5 text-xs text-ink-muted">Up to 25 questions. Applicants answer five at a time in Discord.</p>
+                <p className="mt-0.5 text-xs text-ink-muted">Add as many questions as you need. Applicants answer five at a time in Discord.</p>
               </div>
-              <Button variant="secondary" size="sm" onClick={addQuestion} disabled={d.questions.length >= 25}>
+              <Button variant="secondary" size="sm" onClick={addQuestion}>
                 <Plus className="h-4 w-4" /> Add question
               </Button>
             </div>
             <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
-              <span className="rounded-lg bg-brand-500/15 px-2.5 py-1 font-medium text-brand-200">{d.questions.length} / 25 questions</span>
+              <span className="rounded-lg bg-brand-500/15 px-2.5 py-1 font-medium text-brand-200">{d.questions.length} question{d.questions.length === 1 ? '' : 's'}</span>
               <span>{Math.ceil(d.questions.length / 5)} {Math.ceil(d.questions.length / 5) === 1 ? 'page' : 'pages'} in Discord</span>
             </div>
 
