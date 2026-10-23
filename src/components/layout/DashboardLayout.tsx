@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { Outlet, useNavigate, useParams } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { useGuildOverview } from '@/hooks/useGuild';
 import { useGuildRealtime } from '@/hooks/useGuildRealtime';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 export function DashboardLayout() {
   const { guildId = '' } = useParams();
@@ -25,11 +26,24 @@ export function DashboardLayout() {
           <Topbar overview={overview.data} onMenu={() => setMobileOpen(true)} />
           <main className="scrollbar-thin flex-1 px-4 py-6 sm:px-6 lg:px-8">
             <div className="mx-auto w-full max-w-6xl">
-              <Outlet />
+              {/* Tabs load lazily; keep the sidebar and top bar up while one loads. */}
+              <Suspense fallback={<TabSkeleton />}>
+                <Outlet />
+              </Suspense>
             </div>
           </main>
         </div>
       </div>
+    </div>
+  );
+}
+
+function TabSkeleton() {
+  return (
+    <div className="space-y-4">
+      <Skeleton className="h-10 w-64 rounded-xl" />
+      <Skeleton className="h-40 rounded-2xl" />
+      <Skeleton className="h-64 rounded-2xl" />
     </div>
   );
 }
