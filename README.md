@@ -21,6 +21,11 @@ welcomes, analytics and settings, with live stats streamed over WebSockets.
 Landing · Login · Server picker · Dashboard overview (live stats + charts) · Welcome builder
 (live Discord preview) · Moderation (action panel + realtime case history) · Analytics · Settings.
 
+**Info Panels** — generate polished server rules, staff rules, role information and server
+information panels from a few answers and the server's real roles, edit them with a live
+Discord preview, and publish them as embeds with clickable role mentions. The bot-side API and
+slash commands it uses are described in [`docs/BOT_PANELS.md`](docs/BOT_PANELS.md).
+
 ## Local development
 
 ```bash
