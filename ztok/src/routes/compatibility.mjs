@@ -13,6 +13,16 @@ import { Misc } from '../settings.mjs';
 import { FindUser, StoryStatus, UserShape, UserStats, Videos, SetRelation, TagId, TagName, TagSql, MentionedUsers, CommentExtra, Relation, AddComment, FollowList, AvatarUrl, Activity, UnreadActivity, MarkActivityRead, RelationSql, RecordView, SetBlock, BlockList, BlockedBetween, DmAudiences, DmSettings, SetDmSetting } from '../store.mjs';
 
 const ViewSecret = randomBytes(32);
+// Logged-out views are de-duplicated in memory only, so no IP (or IP hash) is ever written to the database.
+const AnonymousViews = new Map();
+function FirstAnonymousView(Address, VideoId) {
+	const Now = Date.now();
+	if (AnonymousViews.size > 50000) { for (const [Key, Until] of AnonymousViews) if (Until <= Now) AnonymousViews.delete(Key); if (AnonymousViews.size > 50000) AnonymousViews.clear(); }
+	const Key = createHmac('sha256', ViewSecret).update(`${Address ?? ''}|${VideoId}`).digest('base64');
+	if ((AnonymousViews.get(Key) ?? 0) > Now) return false;
+	AnonymousViews.set(Key, Now + 6 * 60 * 60 * 1000);
+	return true;
+}
 
 const FollowStatus = Value => ({ 1: 1, 2: 2, 3: 4 })[Value] ?? 0;
 const Offset = Value => Math.min(Math.max(Math.floor(Number(Value)) || 0, 0), 100000);
@@ -371,7 +381,8 @@ export async function Compatibility(Context) {
 		Limiter.Hit(`view:${Request.socket.remoteAddress}`, 120);
 		const VideoId = Id((await ReadBody(Request, 1024)).id);
 		await AssertVideoVisible(Pool, VideoId, User?.id);
-		await RecordView(Pool, VideoId, User ? `u:${User.id}` : `ip:${createHmac('sha256', ViewSecret).update(Request.socket.remoteAddress ?? '').digest('hex')}`);
+		if (User) await RecordView(Pool, VideoId, `u:${User.id}`);
+		else if (FirstAnonymousView(Request.socket.remoteAddress, VideoId)) await RecordView(Pool, VideoId, `anon:${randomBytes(16).toString('hex')}`);
 		Response.writeHead(204).end(); return true;
 	}
 	if (Path === '/api/share/settings/') {
