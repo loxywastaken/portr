@@ -1,0 +1,40 @@
+# Render Blueprint for ztok (ztok/). Render → New → Blueprint → pick this repo.
+# The database is Postgres from Vercel (Neon); see ztok/docs/DEPLOY.md.
+services:
+  - type: web
+    name: ztok
+    runtime: docker
+    dockerfilePath: ./ztok/Dockerfile
+    dockerContext: ./ztok
+    # Disks need a paid instance; Starter is the smallest.
+    plan: starter
+    # Same area as Vercel's default Neon region (Washington, D.C. / us-east-1).
+    region: virginia
+    healthCheckPath: /health/ready
+    buildFilter:
+      paths:
+        - ztok/**
+        - render.yaml
+    domains:
+      - ztok.site
+    disk:
+      name: media
+      mountPath: /var/lib/ztok/media
+      sizeGB: 10
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: PUBLIC_ORIGIN
+        value: https://ztok.site
+      - key: PORT
+        value: "3210"
+      - key: INSTANCE_NAME
+        value: ztok
+      - key: INSTANCE_DESCRIPTION
+        value: A little corner of the internet for your videos.
+      - key: REGISTRATION_MODE
+        value: closed
+      - key: MAX_VIDEO_MB
+        value: "100"
+      - key: MAX_VIDEO_SECONDS
+        value: "600"
