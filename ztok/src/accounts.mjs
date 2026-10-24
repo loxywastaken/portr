@@ -3,7 +3,7 @@ import { RemoveMedia } from './media.mjs';
 import { MessageText, RemovedSql } from './moderation.mjs';
 
 export async function DeleteAccount(Pool, Config, UserId) {
-	const Account = (await Pool.query('SELECT avatar_name FROM users WHERE id = $1', [UserId])).rows[0];
+	const Account = (await Pool.query('SELECT avatar_name, banner_name FROM users WHERE id = $1', [UserId])).rows[0];
 	if (!Account) return false;
 	await Pool.query('DELETE FROM invites WHERE created_by = $1', [UserId]);
 	const Videos = (await Pool.query('DELETE FROM videos WHERE author_id = $1 RETURNING file_name, cover_name, download_name', [UserId])).rows;
@@ -11,6 +11,7 @@ export async function DeleteAccount(Pool, Config, UserId) {
 	await Pool.query('DELETE FROM users WHERE id = $1', [UserId]);
 	for (const Row of Videos) await Promise.all([RemoveMedia(Config, Row.file_name), Row.cover_name && RemoveMedia(Config, Row.cover_name), Row.download_name && RemoveMedia(Config, Row.download_name)]);
 	if (Account.avatar_name) await RemoveMedia(Config, Account.avatar_name);
+	if (Account.banner_name) await RemoveMedia(Config, Account.banner_name);
 	return true;
 }
 
@@ -37,12 +38,14 @@ export async function ExportFiles(Pool, Config, Export) {
 	const Person = Row => ({ Date: Stamp(Row.created_at), UserName: Row.username });
 	const Data = {}, Media = [];
 	if (Export.sections.includes('profile')) {
-		const [Account] = await Query(`SELECT u.username, u.display_name, u.bio, u.email, u.avatar_name, u.avatar_decoration, u.pride_flag, u.verified, u.created_at,
+		const [Account] = await Query(`SELECT u.username, u.display_name, u.bio, u.email, u.avatar_name, u.banner_name, u.avatar_decoration, u.pride_flag, u.verified, u.created_at,
 			(SELECT count(*) FROM follows WHERE following_id = u.id)::int AS followers, (SELECT count(*) FROM follows WHERE follower_id = u.id)::int AS following,
 			(SELECT count(*) FROM likes l JOIN videos v ON v.id = l.video_id WHERE v.author_id = u.id)::int AS likes FROM users u WHERE u.id = $1`);
 		const Photo = Account.avatar_name ? `Profile/Profile Photo${extname(Account.avatar_name)}` : '';
 		if (Photo) Media.push({ Name: Photo, Path: join(Config.MediaDir, Account.avatar_name) });
-		Data.Profile = { 'Profile Information': { ProfileMap: { userName: Account.username, displayName: Account.display_name, bioDescription: Account.bio, emailAddress: Account.email ?? '', profilePhoto: Photo,
+		const Banner = Account.banner_name ? `Profile/Profile Banner${extname(Account.banner_name)}` : '';
+		if (Banner) Media.push({ Name: Banner, Path: join(Config.MediaDir, Account.banner_name) });
+		Data.Profile = { 'Profile Information': { ProfileMap: { userName: Account.username, displayName: Account.display_name, bioDescription: Account.bio, emailAddress: Account.email ?? '', profilePhoto: Photo, profileBanner: Banner,
 			followerCount: Account.followers, followingCount: Account.following, likesReceived: Account.likes, verified: Account.verified, prideFlag: Account.pride_flag, avatarDecoration: Account.avatar_decoration, accountCreated: Stamp(Account.created_at) } } };
 	}
 	if (Export.sections.includes('video')) {
