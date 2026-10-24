@@ -94,6 +94,22 @@ export async function SaveAvatar(Config, UserId, Bytes) {
 	} finally { await rm(Input, { force: true }); }
 }
 
+// Profile banners: a wide background behind the profile header, stored as a 16:9 JPEG (1600x900).
+export async function SaveBanner(Config, UserId, Bytes) {
+	await mkdir(join(Config.MediaDir, '.incoming'), { recursive: true });
+	const Input = join(Config.MediaDir, '.incoming', randomUUID());
+	const Name = `banner-${UserId}-${randomUUID()}.jpg`;
+	const Whitelist = ['-protocol_whitelist', 'file', '-format_whitelist', 'png_pipe,jpeg_pipe,webp_pipe'];
+	try {
+		await writeFile(Input, Bytes, { flag: 'wx', mode: 0o600 });
+		const Track = JSON.parse(await Run(Config.FFprobe, ['-v', 'error', ...Whitelist, '-show_streams', '-of', 'json', Input], 'InvalidImage')).streams?.[0];
+		if (!Track || Track.width > 8192 || Track.height > 8192) throw new HttpError(422, 'InvalidImage');
+		await Run(Config.FFmpeg, ['-hide_banner', '-loglevel', 'error', '-nostdin', ...Whitelist, '-i', Input, '-frames:v', '1', '-map_metadata', '-1',
+			'-vf', 'scale=1600:900:force_original_aspect_ratio=increase,crop=1600:900', '-q:v', '3', '-threads', '1', '-n', join(Config.MediaDir, Name)], 'InvalidImage');
+		return Name;
+	} finally { await rm(Input, { force: true }); }
+}
+
 export async function SaveBrandImage(Config, Slot, Bytes) {
 	await mkdir(join(Config.MediaDir, '.incoming'), { recursive: true });
 	const Input = join(Config.MediaDir, '.incoming', randomUUID());
