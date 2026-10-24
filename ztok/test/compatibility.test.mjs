@@ -438,6 +438,31 @@ test('original client profile editing saves name, bio, and a re-encoded avatar t
 	assert.equal((await fetch(Second.data.url_list[0])).status, 200);
 });
 
+test('profile banners are re-encoded to 16:9, shown through the badges lookup, and replaced or removed cleanly', async () => {
+	const Image = join(Directory, 'banner.png');
+	assert.equal(spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=size=1200x400', '-frames:v', '1', Image]).status, 0);
+	const Send = (Method, Bytes, Type = 'image/png', Headers = Auth()) => fetch(Origin + '/api/v1/profile/banner', { method: Method, headers: { ...Headers, ...(Bytes ? { 'content-type': Type } : {}) }, body: Bytes });
+	const Lookup = async () => (await (await fetch(`${Origin}/_ztok/badges?users=owner`)).json()).banners.owner;
+	assert.equal((await fetch(Origin + '/api/v1/profile/banner', { method: 'POST', headers: { 'content-type': 'image/png' }, body: await readFile(Image) })).status, 401);
+	assert.equal((await Send('POST', await readFile(Image), 'image/png', { cookie: Cookie })).status, 403);
+	assert.equal((await Send('POST', Buffer.from('hello'), 'text/plain')).status, 415);
+	assert.equal((await Send('POST', Buffer.from('not an image'))).status, 422);
+	assert.equal(await Lookup(), null);
+	const First = (await (await Send('POST', await readFile(Image))).json()).banner, Name = First.split('/media/')[1];
+	assert.match(Name, new RegExp(`^banner-${Owner.id}-[0-9a-f-]{36}\\.jpg$`));
+	const Probe = JSON.parse(spawnSync('ffprobe', ['-v', 'error', '-show_streams', '-of', 'json', join(Directory, Name)]).stdout);
+	assert.equal(Probe.streams[0].width, 1600); assert.equal(Probe.streams[0].height, 900);
+	assert.equal((await fetch(First)).headers.get('content-type'), 'image/jpeg');
+	assert.equal(await Lookup(), First);
+	const Second = (await (await Send('POST', await readFile(Image))).json()).banner;
+	assert.notEqual(Second, First); assert.equal(await Lookup(), Second);
+	await assert.rejects(readFile(join(Directory, Name)));
+	assert.deepEqual(await (await Send('DELETE')).json(), { banner: null });
+	assert.equal(await Lookup(), null);
+	await assert.rejects(readFile(join(Directory, Second.split('/media/')[1])));
+	assert.ok((await Pool.query("SELECT 1 FROM user_events WHERE user_id = $1 AND kind = 'profile_change' AND detail = 'Removed banner'", [Owner.id])).rowCount);
+});
+
 test('original client username checks and changes enforce local username rules', async () => {
 	const Kitten = await Login(Pool, 'newkitten', Password);
 	const AsKitten = { cookie: `ztok_session=${Kitten.Token}`, 'x-csrf-token': Kitten.Csrf };
