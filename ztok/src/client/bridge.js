@@ -1,3 +1,21 @@
+// Phones: the archived client is TikTok's desktop web app. A phone user agent sends it down mobile-only code
+// paths that ztok can't serve (a half-drawn login page, missing modules), so it is shown a desktop user agent.
+// The layout is fitted to small screens by responsive.css.
+(() => {
+	try {
+		const Real = navigator.userAgent;
+		if (!/Mobi|Android|iPhone|iPad|iPod/i.test(Real)) return;
+		const Android = /Android/i.test(Real);
+		const Desktop = Android ? 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36' : 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15';
+		const Define = (Name, Value) => { try { Object.defineProperty(Navigator.prototype, Name, { get: () => Value, configurable: true }); } catch {} };
+		const Hints = navigator.userAgentData;
+		Define('userAgent', Desktop);
+		Define('appVersion', Desktop.slice('Mozilla/'.length));
+		Define('platform', Android ? 'Linux x86_64' : 'MacIntel');
+		if (Hints) Define('userAgentData', { brands: Hints.brands, mobile: false, platform: Android ? 'Linux' : 'macOS', toJSON: () => ({ brands: Hints.brands, mobile: false }), getHighEntropyValues: Wanted => Hints.getHighEntropyValues(Wanted).then(Values => ({ ...Values, mobile: false })) });
+		document.documentElement.dataset.ztokPhone = '';
+	} catch {}
+})();
 (() => {
 	const Instance = JSON.parse(document.getElementById('ztok-instance')?.textContent ?? '{}');
 	document.documentElement.style.setProperty('--ztok-name', JSON.stringify(Instance.name ?? 'ztok'));
