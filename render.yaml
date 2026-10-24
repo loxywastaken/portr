@@ -6,8 +6,8 @@ services:
     runtime: docker
     dockerfilePath: ./ztok/Dockerfile
     dockerContext: ./ztok
-    # Disks need a paid instance; Starter is the smallest.
-    plan: starter
+    # Free instance: no persistent disk, so uploaded videos are lost on each deploy/restart.
+    plan: free
     # Same area as Vercel's default Neon region (Washington, D.C. / us-east-1).
     region: virginia
     healthCheckPath: /health/ready
@@ -17,10 +17,6 @@ services:
         - render.yaml
     domains:
       - ztok.site
-    disk:
-      name: media
-      mountPath: /var/lib/ztok/media
-      sizeGB: 10
     envVars:
       - key: DATABASE_URL
         sync: false
