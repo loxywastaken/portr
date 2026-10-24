@@ -95,7 +95,9 @@ Two ways to make login work:
 
 [`ztok/`](ztok/README.md) is a separate, self-hosted backend for TikTok's web client (a renamed fork
 of Kittok). It has its own `package.json`, Docker setup and docs, and isn't part of the dashboard
-build: `cd ztok && npm run setup && docker compose up -d --build`.
+build. It is set up to run at [ztok.site](https://ztok.site) from [`render.yaml`](render.yaml), with its database on
+Vercel (Neon Postgres); [`ztok/docs/DEPLOY.md`](ztok/docs/DEPLOY.md) has the setup steps. To run it
+locally: `cd ztok && npm run setup && docker compose up -d --build`.
 
 ## License
 

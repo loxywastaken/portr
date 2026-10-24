@@ -55,6 +55,10 @@ const Server = createServer(async (Request, Response) => {
 		Response.setHeader('referrer-policy', 'same-origin');
 		Response.setHeader('content-security-policy', Csp);
 		if (Config.SecureCookies) Response.setHeader('strict-transport-security', 'max-age=31536000');
+		// Health checks come from the host's own prober, which may not send the public Host header.
+		const HealthPath = (Request.url ?? '').split('?')[0];
+		if (HealthPath === '/health/live') return Json(Response, { status: 'Alive' });
+		if (HealthPath === '/health/ready') { await Pool.query('SELECT 1'); return Json(Response, { status: 'Ready' }); }
 		const AllowedHosts = new Set([new URL(Config.Origin).host]);
 		if (Config.IsLocal) { AllowedHosts.add(`localhost:${Config.Port}`); AllowedHosts.add(`127.0.0.1:${Config.Port}`); }
 		if (!AllowedHosts.has(Request.headers.host)) throw new HttpError(403, 'InvalidHost');
@@ -68,8 +72,6 @@ const Server = createServer(async (Request, Response) => {
 		const Path = Url.pathname;
 		if (/^\/signup(?:\/|$)/.test(Path) && Config.Registration === 'closed') { RequireMethod(Request, ['GET', 'HEAD']); Response.writeHead(303, { location: '/login' }); return Response.end(); }
 		if (Path === '/foryou') { RequireMethod(Request, ['GET', 'HEAD']); Response.writeHead(303, { location: '/' + Url.search }); return Response.end(); }
-		if (Path === '/health/live') return Json(Response, { status: 'Alive' });
-		if (Path === '/health/ready') { await Pool.query('SELECT 1'); return Json(Response, { status: 'Ready' }); }
 		if (Path.startsWith('/_client/') || Path === LoginManifestPath) {
 			RequireMethod(Request, ['GET', 'HEAD']);
 			const Upstream = new URL(Path === LoginManifestPath ? LoginManifestUrl : `https://${Path.slice('/_client/'.length)}${Url.search}`);

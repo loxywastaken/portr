@@ -28,12 +28,14 @@ Open `.env`, set `PUBLIC_ORIGIN` to your domain and pick an `INSTANCE_NAME`. The
 
 ```sh
 docker compose up -d --build
-docker compose exec app node scripts/create-user.mjs yourname --admin
+docker compose exec --user node app node scripts/create-user.mjs yourname --admin
 ```
 
 Point your proxy at `127.0.0.1:3210` (there's a [Caddy example](deploy/Caddyfile.example)). Log in through TikTok's normal login page: **Use phone / email / username**, then **Log in with email or username**.
 
 The repo includes the copy of TikTok's web client that ztok is built against (`client/`), so every instance runs the same version. ztok patches parts of it, which is why it doesn't just grab TikTok's latest.
+
+ztok.site itself runs on Render with its database on Vercel (Neon Postgres). [DEPLOY.md](docs/DEPLOY.md) has the click-by-click setup, and [`render.yaml`](../render.yaml) does the rest.
 
 A few extras you'll probably want, all covered in [HOSTING.md](docs/HOSTING.md):
 
@@ -41,7 +43,7 @@ A few extras you'll probably want, all covered in [HOSTING.md](docs/HOSTING.md):
 - an IP security key: `npm run ip-key`
 - Discord's collectibles catalog, for avatar decorations and nameplates (admin panel → Misc)
 
-Other docs: [API](docs/API.md), [architecture](docs/ARCHITECTURE.md), [contributing](CONTRIBUTING.md).
+Other docs: [deploying ztok.site](docs/DEPLOY.md), [API](docs/API.md), [architecture](docs/ARCHITECTURE.md), [contributing](CONTRIBUTING.md).
 
 ## Running from source
 

@@ -8,7 +8,7 @@ An instance is a complete installation on a domain you control. Its users, sessi
 2. Run `npm run setup`, or the Docker-based Node setup command in the README. This creates `.env` with a random database password and preserves existing configuration on reruns.
 3. Set `PUBLIC_ORIGIN` to your exact HTTPS origin, without a path; for example `https://cats.example.org`. Set `INSTANCE_NAME` and `INSTANCE_DESCRIPTION`.
 4. Run `docker compose up -d --build`.
-5. Run `docker compose exec app node scripts/create-user.mjs owner --admin`. Enter a new local password at the prompt. Password input is hidden. The command creates an administrator for this instance.
+5. Run `docker compose exec --user node app node scripts/create-user.mjs owner --admin`. Enter a new local password at the prompt. Password input is hidden. The command creates an administrator for this instance.
 6. Configure DNS and an HTTPS reverse proxy. The app is published on `127.0.0.1:3210`. The database is internal to Compose. Copy `deploy/Caddyfile.example` into your Caddy configuration, replacing its domain.
 7. Visit `/login`, choose the username/password option, and log in with your local account. Upload videos at `/account` afterward. The original feed reads the resulting PostgreSQL records and local media.
 
@@ -24,7 +24,7 @@ Set up the security key once, on the server:
 npm run ip-key
 ```
 
-It prints a 128-character key once; save it somewhere safe, because it can't be recovered and the server keeps only its public half, so neither the database nor the server can read sealed IPs without it. Use `npm run ip-key -- --own` to type your own key (at least 64 characters, with letters, numbers and symbols), `-- --replace` to change it (asks for the current one and re-seals stored IPs), or `-- --reset` if it's lost (deletes every sealed IP). With Docker, run `docker compose exec app node scripts/ip-key.mjs`.
+It prints a 128-character key once; save it somewhere safe, because it can't be recovered and the server keeps only its public half, so neither the database nor the server can read sealed IPs without it. Use `npm run ip-key -- --own` to type your own key (at least 64 characters, with letters, numbers and symbols), `-- --replace` to change it (asks for the current one and re-seals stored IPs), or `-- --reset` if it's lost (deletes every sealed IP). With Docker, run `docker compose exec --user node app node scripts/ip-key.mjs`.
 
 ## Configuration
 
@@ -64,8 +64,8 @@ cp deploy/ztok.service ~/.config/systemd/user/ && systemctl --user enable --now 
 Create accounts as the operator even while registration is closed:
 
 ```sh
-docker compose exec app node scripts/create-user.mjs kitten
-docker compose exec app node scripts/create-invite.mjs owner
+docker compose exec --user node app node scripts/create-user.mjs kitten
+docker compose exec --user node app node scripts/create-invite.mjs owner
 ```
 
 Invites are single-use, expire after seven days, and are stored as hashes. Set `REGISTRATION_MODE=invite` to show invite-based registration at `/account?register=1`. A public registration request always creates a member; it cannot choose an administrator role. No default password or shared bootstrap key ships with ztok.

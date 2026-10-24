@@ -4,7 +4,7 @@ import { Root } from './client/archive.mjs';
 export function LoadConfig(Env = process.env) {
 	const Port = Number(Env.PORT ?? 3210);
 	if (!Number.isInteger(Port) || Port < 1 || Port > 65535) throw new Error('InvalidPort');
-	const Origin = new URL(Env.PUBLIC_ORIGIN ?? `http://127.0.0.1:${Port}`);
+	const Origin = new URL(Env.PUBLIC_ORIGIN || Env.RENDER_EXTERNAL_URL || `http://127.0.0.1:${Port}`);
 	if (!['http:', 'https:'].includes(Origin.protocol) || Origin.username || Origin.password || Origin.pathname !== '/' || Origin.search || Origin.hash) throw new Error('InvalidPublicOrigin');
 	const IsLocal = ['localhost', '127.0.0.1', '[::1]'].includes(Origin.hostname);
 	if (!IsLocal && Origin.protocol !== 'https:') throw new Error('PublicOriginNeedsHTTPS');
