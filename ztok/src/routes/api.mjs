@@ -1,9 +1,9 @@
 import { AssertVideoVisible, PostSettings, SetPrivateAccount } from '../privacy.mjs';
 import { rm } from 'node:fs/promises';
-import { HttpError, Id, Json, ReadBody, RequireMethod } from '../http.mjs';
-import { CreateUser, Login, RequireCsrf, SessionCookie, ClientInfo } from '../auth.mjs';
+import { HttpError, Id, Json, ReadBody, ReadRaw, RequireMethod } from '../http.mjs';
+import { CreateUser, Login, RequireCsrf, SessionCookie, ClientInfo, RecordEvent } from '../auth.mjs';
 import { UserShape, UserStats, FindUser, Videos, SetRelation, AddComment, SetBlock } from '../store.mjs';
-import { DownloadCopy, ImportVideo, ReceiveVideo, ServeMedia, WarmDownloads } from '../media.mjs';
+import { DownloadCopy, ImportVideo, ReceiveVideo, RemoveMedia, SaveBanner, ServeMedia, WarmDownloads } from '../media.mjs';
 import { AssertAllowed, RemovedSql } from '../moderation.mjs';
 import { BadgeCatalog, BadgeSvg, PrideFlag, PublicBadges } from '../badges.mjs';
 import { AvatarDecoration, DecorationCatalog, DecorationImage, Nameplate, NameplateCatalog, NameplateFile, NameStyle, PublicDecoration, PublicNameplate, PublicNameStyle } from '../decorations.mjs';
@@ -44,8 +44,8 @@ export async function Api(Context) {
 		RequireMethod(Request, ['GET']);
 		const Names = [...new Set((Url.searchParams.get('users') ?? '').split(','))];
 		if (Names.length > 50 || Names.some(Name => !/^[a-z0-9_]{3,24}$/.test(Name))) throw new HttpError(400, 'InvalidUsernames');
-		const Rows = (await Pool.query('SELECT username, display_name, pride_flag, user_badges, verified, avatar_decoration, name_style, nameplate FROM users WHERE username = ANY($1::text[]) AND suspended_at IS NULL', [Names])).rows;
-		Json(Response, { users: Object.fromEntries(Rows.map(Row => [Row.username, PublicBadges(Row)])), verified: Misc.verifiedBadges ? Rows.filter(Row => Row.verified).map(Row => Row.username) : [], decorations: Object.fromEntries(Rows.map(Row => [Row.username, PublicDecoration(Row)]).filter(Pair => Pair[1])),
+		const Rows = (await Pool.query('SELECT username, display_name, pride_flag, user_badges, verified, avatar_decoration, name_style, nameplate, banner_name FROM users WHERE username = ANY($1::text[]) AND suspended_at IS NULL', [Names])).rows;
+		Json(Response, { banners: Object.fromEntries(Rows.map(Row => [Row.username, Row.banner_name ? `${Config.Origin}/media/${Row.banner_name}` : null])), users: Object.fromEntries(Rows.map(Row => [Row.username, PublicBadges(Row)])), verified: Misc.verifiedBadges ? Rows.filter(Row => Row.verified).map(Row => Row.username) : [], decorations: Object.fromEntries(Rows.map(Row => [Row.username, PublicDecoration(Row)]).filter(Pair => Pair[1])),
 			styles: Object.fromEntries(Rows.filter(Row => PublicNameStyle(Row)).map(Row => [Row.username, { ...PublicNameStyle(Row), name: Row.display_name }])), nameplates: Object.fromEntries(Rows.map(Row => [Row.username, PublicNameplate(Row)]).filter(Pair => Pair[1])) }); return true;
 	}
 	if (Path === '/_ztok/nameplates/catalog') {
@@ -70,6 +70,22 @@ export async function Api(Context) {
 	if (Path === '/api/v1/profile/ip-consent') {
 		RequireMethod(Request, ['PATCH']); RequireCsrf(Request, User);
 		Json(Response, { allow: await SetIpConsent(Pool, User.id, (await ReadBody(Request)).allow) }); return true;
+	}
+	if (Path === '/api/v1/profile/banner') {
+		RequireMethod(Request, ['POST', 'DELETE']);
+		if (!User) throw new HttpError(401, 'NotLoggedIn');
+		RequireCsrf(Request, User);
+		await AssertAllowed(Pool, User, 'profile');
+		let Name = null;
+		if (Request.method === 'POST') {
+			Limiter.Hit(`banner:${User.id}`, 20, 3600000);
+			if (!/^image\/(png|jpeg|webp)$/.test(String(Request.headers['content-type'] ?? '').split(';')[0].trim())) throw new HttpError(415, 'InvalidImage');
+			Name = await SaveBanner(Config, User.id, await ReadRaw(Request, 8 * 1024 * 1024));
+		}
+		const Previous = (await Pool.query('UPDATE users u SET banner_name = $2 FROM (SELECT banner_name FROM users WHERE id = $1) Old WHERE u.id = $1 RETURNING Old.banner_name AS previous', [User.id, Name])).rows[0]?.previous;
+		if (Previous && Previous !== Name) await RemoveMedia(Config, Previous);
+		await RecordEvent(Pool, User.id, 'profile_change', ClientInfo(Request, Config), Name ? 'Changed banner' : 'Removed banner');
+		Json(Response, { banner: Name ? `${Config.Origin}/media/${Name}` : null }); return true;
 	}
 	if (Path === '/api/v1/profile/name-style' || Path === '/api/v1/profile/nameplate') {
 		RequireMethod(Request, ['PATCH']); RequireCsrf(Request, User);
