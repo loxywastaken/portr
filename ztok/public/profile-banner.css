@@ -1,0 +1,28 @@
+/* Profile banner: wallpaper-style image behind the profile header. */
+.ZtokBanner{display:none}
+.ZtokBannerHost{position:relative;isolation:isolate;overflow:hidden;border-radius:16px;padding:20px;margin-bottom:12px;color:#fff}
+.ZtokBannerHost>.ZtokBanner{display:block;position:absolute;inset:0;z-index:-1;background:#161823 center/cover no-repeat}
+.ZtokBannerHost>.ZtokBanner::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.2) 0%,rgba(0,0,0,.42) 50%,rgba(0,0,0,.68) 100%)}
+.ZtokBannerHost .user-profile-header :is(h1,h2,h3,h4,p,strong,span,a,[data-e2e="user-bio"],[data-e2e="user-subtitle"],[data-e2e="user-title"]):not(button,button *){color:#fff!important;text-shadow:0 1px 3px rgba(0,0,0,.55)}
+.ZtokBannerHost .user-profile-header [data-e2e="user-avatar"]{box-shadow:0 0 0 4px rgba(255,255,255,.9);border-radius:50%}
+.ZtokBannerHost .user-profile-header button:not([data-e2e="follow-button"]){background:rgba(255,255,255,.2)!important;color:#fff!important;border-color:transparent!important;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.ZtokBannerHost .user-profile-header button:not([data-e2e="follow-button"]) *{color:#fff!important;background:transparent!important}
+.ZtokBannerHost .user-profile-header button:not([data-e2e="follow-button"]) :is(svg,path){fill:currentColor}
+.ZtokBannerHost .user-profile-header button:not([data-e2e="follow-button"]):hover{background:rgba(255,255,255,.3)!important}
+@media (max-width:760px){.ZtokBannerHost{border-radius:12px;padding:16px 12px}}
+@media (prefers-reduced-transparency:reduce){.ZtokBannerHost .user-profile-header button{-webkit-backdrop-filter:none;backdrop-filter:none}}
+
+/* Edit profile → Banner row */
+.ZtokBannerEdit{display:flex;flex-direction:column;gap:10px;width:360px;max-width:100%}
+.ZtokBannerPreview{position:relative;width:100%;aspect-ratio:16/9;border-radius:10px;background:var(--ui-shape-neutral-4,#f1f1f2) center/cover no-repeat;border:1px dashed rgba(22,24,35,.2);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.ZtokBannerPreview.Filled{border-style:solid;border-color:rgba(22,24,35,.12)}
+.ZtokBannerEmpty{font-size:14px;color:rgba(22,24,35,.5)}
+.ZtokBannerButtons{display:flex;gap:8px;flex-wrap:wrap}
+.ZtokBannerButton{height:36px;padding:0 16px;border-radius:8px;border:none;background:#fe2c55;color:#fff;font:600 14px/36px inherit;font-family:inherit;cursor:pointer}
+.ZtokBannerButton.Secondary{background:rgba(22,24,35,.06);color:#161823;border:1px solid rgba(22,24,35,.12)}
+.ZtokBannerButton:disabled{opacity:.5;cursor:default}
+.ZtokBannerButton:focus-visible{outline:2px solid #25f4ee;outline-offset:2px}
+.ZtokBannerButton[hidden]{display:none}
+.ZtokBannerHelp,.ZtokBannerStatus{margin:0;font-size:12px;line-height:1.4;color:rgba(22,24,35,.65)}
+.ZtokBannerStatus:empty{display:none}
+.ZtokBannerRow.Busy .ZtokBannerPreview{opacity:.6}
