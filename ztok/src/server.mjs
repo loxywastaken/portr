@@ -198,7 +198,8 @@ Server.on('upgrade', async (Request, Socket) => {
 		} });
 	} catch { Socket.destroy(); }
 });
-Server.requestTimeout = 240000;
+// Phone uploads can be large and slow to send, so allow up to 30 minutes for a request body to arrive.
+Server.requestTimeout = 1800000;
 Server.headersTimeout = 15000;
 Server.listen(Config.Port, Config.Host, () => console.log(`ztok ready: ${Config.Origin}`));
 setTimeout(() => WarmDownloads(Pool, Config).catch(() => console.error('DownloadWarmupFailed')), 30000).unref();
