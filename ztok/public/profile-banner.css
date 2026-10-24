@@ -1,15 +1,28 @@
-/* Profile banner: wallpaper-style image behind the profile header. */
+/* Profile banner, like the TikTok app: the image fills the top of the profile and fades into dark,
+   with the name, handle and stats left-aligned over the fade and a smaller avatar on the right. */
 .ZtokBanner{display:none}
-.ZtokBannerHost{position:relative;isolation:isolate;overflow:hidden;border-radius:16px;padding:20px;margin-bottom:12px;color:#fff}
-.ZtokBannerHost>.ZtokBanner{display:block;position:absolute;inset:0;z-index:-1;background:#161823 center/cover no-repeat}
-.ZtokBannerHost>.ZtokBanner::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.2) 0%,rgba(0,0,0,.42) 50%,rgba(0,0,0,.68) 100%)}
-.ZtokBannerHost .user-profile-header :is(h1,h2,h3,h4,p,strong,span,a,[data-e2e="user-bio"],[data-e2e="user-subtitle"],[data-e2e="user-title"]):not(button,button *){color:#fff!important;text-shadow:0 1px 3px rgba(0,0,0,.55)}
-.ZtokBannerHost .user-profile-header [data-e2e="user-avatar"]{box-shadow:0 0 0 4px rgba(255,255,255,.9);border-radius:50%}
-.ZtokBannerHost .user-profile-header button:not([data-e2e="follow-button"]){background:rgba(255,255,255,.2)!important;color:#fff!important;border-color:transparent!important;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.ZtokBannerHost{position:relative;isolation:isolate;overflow:hidden;border-radius:16px;padding:clamp(96px,16vw,170px) 20px 20px;margin-bottom:12px;background:#000;color:#fff}
+.ZtokBannerHost>.ZtokBanner{display:block;position:absolute;inset:0 0 auto 0;height:min(100%,max(240px,62%));z-index:-1;background:#161823 center 30%/cover no-repeat}
+.ZtokBannerHost>.ZtokBanner::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.08) 40%,rgba(0,0,0,.55) 72%,#000 100%)}
+.ZtokBannerHost .user-profile-header{flex-direction:row-reverse!important;align-items:flex-end!important;justify-content:space-between!important;gap:16px;text-align:left}
+.ZtokBannerHost .user-profile-header [class*="--DivShareTitleContainer"]{flex:1 1 auto;min-width:0;align-items:flex-start!important;text-align:left!important;margin:0!important;padding:0!important}
+.ZtokBannerHost .user-profile-header [class*="--DivShareTitleContainer"] *{text-align:left!important}
+.ZtokBannerHost .user-profile-header :is([class*="--DivPreviewUIWrapper"],[class*="--DivUserIdentifierWrapper"],[class*="--CreatorPageHeaderTextContainer"]){align-items:flex-start!important;justify-content:flex-start!important;width:100%}
+.ZtokBannerHost .user-profile-header [class*="--DivButtonPanelWrapper"]{justify-content:flex-start!important;flex-wrap:wrap}
+.ZtokBannerHost .user-profile-header [data-e2e="user-title"]{font-size:clamp(24px,5vw,32px)!important;font-weight:800!important;line-height:1.15}
+.ZtokBannerHost .user-profile-header [data-e2e="user-avatar"]{flex:none;margin:0!important;border-radius:50%;box-shadow:0 0 0 3px #000,0 0 0 5px rgba(255,255,255,.85)}
+.ZtokBannerHost .user-profile-header [data-e2e="user-avatar"],.ZtokBannerHost .user-profile-header [data-e2e="user-avatar"]>div,.ZtokBannerHost .user-profile-header [data-e2e="user-avatar"] [class*="--SpanAvatarContainer"]{width:clamp(84px,14vw,120px)!important;height:clamp(84px,14vw,120px)!important}
+.ZtokBannerHost .user-profile-header :is(h1,h2,h3,h4,p,strong,span,a,[data-e2e="user-bio"],[data-e2e="user-subtitle"],[data-e2e="user-title"]):not(button,button *){color:#fff!important;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.ZtokBannerHost .user-profile-header [data-e2e="user-subtitle"]{opacity:.8}
+.ZtokBannerHost .user-profile-header button:not([data-e2e="follow-button"]){background:rgba(255,255,255,.16)!important;color:#fff!important;border-color:transparent!important;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
 .ZtokBannerHost .user-profile-header button:not([data-e2e="follow-button"]) *{color:#fff!important;background:transparent!important}
 .ZtokBannerHost .user-profile-header button:not([data-e2e="follow-button"]) :is(svg,path){fill:currentColor}
-.ZtokBannerHost .user-profile-header button:not([data-e2e="follow-button"]):hover{background:rgba(255,255,255,.3)!important}
-@media (max-width:760px){.ZtokBannerHost{border-radius:12px;padding:16px 12px}}
+.ZtokBannerHost .user-profile-header button:not([data-e2e="follow-button"]):hover{background:rgba(255,255,255,.26)!important}
+@media (max-width:760px){
+	.ZtokBannerHost{border-radius:12px;padding:110px 14px 16px;margin-left:0;margin-right:0}
+	.ZtokBannerHost .user-profile-header{gap:12px}
+	.ZtokBannerHost .user-profile-header [data-e2e="user-avatar"]{align-self:flex-start;margin-top:-40px!important}
+}
 @media (prefers-reduced-transparency:reduce){.ZtokBannerHost .user-profile-header button{-webkit-backdrop-filter:none;backdrop-filter:none}}
 
 /* Edit profile → Banner row */
