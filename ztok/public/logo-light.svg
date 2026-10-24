@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 110" role="img" aria-labelledby="title">
+  <title id="title">ztok</title>
+  <defs>
+    <path id="ears" d="M355 172C336 300 335 470 349 598Q351 612 366 607C452 560 718 556 803 610Q819 614 821 598C835 470 834 300 815 172C762 214 648 332 613 470L547 475C522 332 408 214 355 172Z"/>
+    <path id="o" fill-rule="evenodd" d="M299 44C282 44 273 54 273 71S282 98 299 98 325 88 325 71 316 44 299 44ZM299 57C307 57 310 62 310 71S307 85 299 85 288 80 288 71 291 57 299 57Z"/>
+  </defs>
+  <g transform="translate(58 56) scale(0.18) translate(-585 -390)">
+    <use href="#ears" fill="#25F4EE" transform="translate(-24 2)"/>
+    <use href="#ears" fill="#FE2C55" transform="translate(22 8)"/>
+    <use href="#ears" fill="#161823"/>
+  </g>
+  <g fill="#161823">
+    <path d="M121 45h46v12l-28 28h29v12h-48v-12l28-28h-27Z"/>
+    <path transform="translate(-28 0)" d="M211 31h15v14h12v13h-12v22q0 6 7 6h5v11h-9q-18 0-18-17V58h-7V45h7Z"/>
+    <path transform="translate(-53 0)" d="M333 24h15v41l15-20h18l-20 24 22 28h-19l-16-22v22h-15Z"/>
+  </g>
+  <g transform="translate(-51 0)">
+    <use href="#o" fill="#25F4EE" transform="translate(-3 -2)"/>
+    <use href="#o" fill="#FE2C55" transform="translate(3 2)"/>
+    <use href="#o" fill="#161823"/>
+  </g>
+</svg>

@@ -91,6 +91,12 @@ Two ways to make login work:
 
 `npm run dev` · `build` · `preview` · `typecheck` · `lint` · `format`
 
+## ztok
+
+[`ztok/`](ztok/README.md) is a separate, self-hosted backend for TikTok's web client (a renamed fork
+of Kittok). It has its own `package.json`, Docker setup and docs, and isn't part of the dashboard
+build: `cd ztok && npm run setup && docker compose up -d --build`.
+
 ## License
 
-MIT
+MIT (the dashboard). `ztok/` is AGPL-3.0-or-later; see [`ztok/LICENSE`](ztok/LICENSE).
