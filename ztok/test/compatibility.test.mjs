@@ -604,11 +604,11 @@ test('admin user pages show tracked security details, violations, comment lookup
 	const Detail = await (await Admin(`users/${Tracked}`)).json();
 	assert.equal(Detail.user.username, 'tracked_kitten'); assert.equal(Detail.user.self, false);
 	assert.deepEqual(Detail.events.map(Event => Event.kind), ['login', 'login_failed', 'signup']);
-	assert.equal(Detail.signup.language, 'fr-FR'); assert.equal(Detail.signup.ip, 'hidden'); assert.match(Detail.signup.user_agent, /Firefox/);
+	assert.equal(Detail.signup.language, 'fr-FR'); assert.equal(Detail.signup.ip, null); assert.match(Detail.signup.user_agent, /Firefox/);
 	assert.equal(Detail.signup.country, null); assert.deepEqual(Detail.seen.languages, ['fr-FR']);
 	assert.equal(Detail.sessions.length, 1); assert.equal(Detail.sessions[0].user_agent, 'curl/8.0'); assert.ok(!('token_hash' in Detail.sessions[0]));
-	assert.ok(Detail.related.some(Row => Row.username === 'owner'));
-	assert.ok((await (await Admin('users?q=127.0.0.1')).json()).users.some(Row => Row.username === 'tracked_kitten'));
+	assert.deepEqual(Detail.related, []);
+	assert.ok(!(await (await Admin('users?q=127.0.0.1')).json()).users.some(Row => Row.username === 'tracked_kitten'));
 	assert.equal((await Admin(`users/${Tracked}/sessions/revoke`, { session: Detail.sessions[0].id })).status, 200);
 	assert.equal((await (await Call('/api/v1/session', 'GET', undefined, { cookie: TrackedCookie })).json()).user, null);
 	const Comment = (await Pool.query("INSERT INTO comments(video_id, author_id, body) VALUES ($1, $2, 'Look me up') RETURNING id", [VideoId, Tracked])).rows[0].id;
@@ -1684,12 +1684,9 @@ test('display name styles and nameplates use Discord ids, show in the badge look
 	assert.deepEqual([Cleared.styles, Cleared.nameplates], [{}, {}]);
 });
 
-test('IPs are stored as hashes, sealed only for people who allow it, and shown to admins with the security key', async () => {
+test('IP addresses are never stored, not even as hashes', async () => {
 	const Columns = (await Pool.query("SELECT table_name FROM information_schema.columns WHERE column_name = 'ip' AND table_name IN ('user_events', 'sessions')")).rows;
 	assert.deepEqual(Columns, []);
-	const Secret = NewSecurityKey();
-	assert.equal(Secret.length, 128);
-	await Pool.query("INSERT INTO settings(key, value) VALUES ('ipkey', $1) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", [JSON.stringify(KeyRecord(Secret))]);
 	const Join = async (Username, Cookie) => {
 		const Code = Token(); await Pool.query("INSERT INTO invites(token_hash, created_by, expires_at) SELECT $1, id, now() + interval '1 day' FROM users WHERE username = 'owner'", [Hash(Code)]);
 		assert.equal((await Call('/api/v1/users', 'POST', { username: Username, displayName: Username, password: Password, invite: Code }, { cookie: Cookie })).status, 201);
@@ -1697,31 +1694,13 @@ test('IPs are stored as hashes, sealed only for people who allow it, and shown t
 		return { Id: (await Pool.query('SELECT id FROM users WHERE username = $1', [Username])).rows[0].id, Cookie: Signed.headers.get('set-cookie').split(';')[0] };
 	};
 	const Sharing = await Join('sharing_kitten', 'ztok_ip_consent=1'), Private = await Join('private_kitten', 'ztok_ip_consent=0');
-	assert.deepEqual((await Pool.query("SELECT username, ip_consent FROM users WHERE username IN ('sharing_kitten', 'private_kitten') ORDER BY username")).rows.map(Row => [Row.username, Row.ip_consent]), [['private_kitten', false], ['sharing_kitten', true]]);
 	const Stored = Id => Pool.query('SELECT ip_hash, ip_sealed FROM user_events WHERE user_id = $1 UNION ALL SELECT ip_hash, ip_sealed FROM sessions WHERE user_id = $1', [Id]).then(Result => Result.rows);
-	for (const Row of await Stored(Sharing.Id)) { assert.equal(Row.ip_hash, HashIp('127.0.0.1')); assert.ok(Row.ip_sealed?.length > 60); assert.ok(!Row.ip_sealed.includes('127.0.0.1')); }
-	for (const Row of await Stored(Private.Id)) { assert.equal(Row.ip_hash, HashIp('127.0.0.1')); assert.equal(Row.ip_sealed, null); }
-	const Admin = (Route, Body) => Call('/_ztok/admin/' + Route, Body ? 'POST' : 'GET', Body, Auth());
-	const Detail = await (await Admin(`users/${Sharing.Id}`)).json();
-	assert.equal(Detail.signup.ip, 'sealed'); assert.ok(Detail.sessions.every(Session => Session.ip === 'sealed'));
-	assert.ok(Detail.related.some(Row => Row.username === 'private_kitten' && Row.shared === 1 && !('ips' in Row)));
-	assert.equal((await (await Admin(`users/${Private.Id}`)).json()).signup.ip, 'hidden');
-	assert.ok((await (await Admin('users?q=127.0.0.1')).json()).users.some(Row => Row.username === 'private_kitten'));
-	assert.equal((await Admin(`users/${Sharing.Id}/ips`, { key: Secret.slice(1) })).status, 403);
-	const Shown = await (await Admin(`users/${Sharing.Id}/ips`, { key: Secret })).json();
-	assert.equal(Shown.events[Detail.signup.id], '127.0.0.1'); assert.equal(Object.values(Shown.sessions)[0], '127.0.0.1');
-	assert.equal((await Admin(`users/${Private.Id}/ips`, { key: Secret })).status, 403);
-	assert.equal((await (await Admin(`users/${Private.Id}`)).json()).user.ip_consent, false);
-	assert.ok((await Pool.query("SELECT 1 FROM admin_actions WHERE action = 'ips.reveal' AND target = '@sharing_kitten'")).rowCount);
-	const Csrf = (await (await Call('/api/v1/session', 'GET', undefined, { cookie: Sharing.Cookie })).json()).csrfToken;
-	assert.equal((await Call('/api/v1/profile/ip-consent', 'PATCH', { allow: 'yes' }, { cookie: Sharing.Cookie, 'x-csrf-token': Csrf })).status, 400);
-	assert.equal((await Call('/api/v1/profile/ip-consent', 'PATCH', { allow: false }, { cookie: Sharing.Cookie, 'x-csrf-token': Csrf })).status, 200);
-	assert.ok((await Stored(Sharing.Id)).every(Row => Row.ip_sealed === null && Row.ip_hash));
-	assert.equal((await Admin(`users/${Sharing.Id}/ips`, { key: Secret })).status, 403);
-	await Pool.query('UPDATE users SET ip_consent = true WHERE id = $1', [Sharing.Id]);
-	assert.deepEqual(await (await Admin(`users/${Sharing.Id}/ips`, { key: Secret })).json(), { events: {}, sessions: {} });
-	await Pool.query("DELETE FROM settings WHERE key = 'ipkey'");
-	assert.equal((await Admin(`users/${Sharing.Id}/ips`, { key: Secret })).status, 409);
+	for (const Account of [Sharing, Private]) {
+		const Rows = await Stored(Account.Id);
+		assert.ok(Rows.length > 0);
+		assert.ok(Rows.every(Row => Row.ip_hash === null && Row.ip_sealed === null));
+	}
+	assert.equal((await Pool.query("SELECT count(*)::int AS n FROM video_views WHERE viewer LIKE 'ip:%'")).rows[0].n, 0);
 });
 
 test('admins can set the default profile photo and the mail server', async () => {
