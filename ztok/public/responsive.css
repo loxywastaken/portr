@@ -23,3 +23,22 @@
 [data-ztok-settings-back],[data-ztok-chat-back]{display:none}
 
 
+/* Phones: the archived client is a desktop layout. Fit the feed, video pages and profile header to the screen. */
+@media (max-width:760px){
+	html,body{overflow-x:hidden}
+	[class*="--DivMainContainer"]:has([data-e2e="recommend-list-item-container"]),[class*="--DivMainContainer"]:has([class*="--DivLeftContainer"]){flex:1 1 auto;min-width:0!important;width:auto!important;max-width:100%;padding-left:0!important;padding-right:0!important}
+	[class*="--DivColumnListContainer"]{min-width:0!important;width:100%!important;max-width:100%}
+	[class*="--DivLeftContainer"]{min-width:0!important;width:100%!important;max-width:100%}
+	[data-e2e="recommend-list-item-container"],[class*="--DivColumnListContainer"]>[class*="--ArticleItemContainer"]{width:100%!important;padding-left:6px!important;padding-right:6px!important;box-sizing:border-box}
+	[class*="--ArticleItemContainer"] [class*="--DivContentFlexLayout"]{position:relative;width:100%!important;min-width:0}
+	[class*="--ArticleItemContainer"] [class*="--SectionMediaCardContainer"]{min-width:0!important;width:100%!important;flex:1 1 auto}
+	[class*="--ArticleItemContainer"] [class*="--SectionActionBarContainer"]{position:absolute!important;right:8px;bottom:88px;z-index:3;width:auto!important;margin:0!important;padding:0!important;filter:drop-shadow(0 1px 3px rgba(0,0,0,.45))}
+	[class*="--ArticleItemContainer"] [class*="--SectionActionBarContainer"] strong{color:#fff!important}
+	[class*="--ArticleItemContainer"] [class*="--SectionActionBarContainer"] :is(button,[class*="tux-button--capsule"]):not([class*="--StyledAvatarFollowButton"]){background:rgba(0,0,0,.28)!important;color:#fff!important}
+	[class*="--ArticleItemContainer"] [class*="--DivMediaCardBottom"],[class*="--ArticleItemContainer"] [class*="--DivMediaCardOverlayBottom"]{padding-right:64px!important;box-sizing:border-box}
+	.user-profile-header [class*="--DivButtonPanelWrapper"]{flex-wrap:wrap;justify-content:center;max-width:100%}
+	.user-profile-header [class*="--DivShareTitleContainer"]{max-width:100%;min-width:0;box-sizing:border-box}
+	[class*="--PFavorite"],[class*="--PLike"]{white-space:nowrap}
+	[class*="--DivVideoFeedTab"],[data-e2e="user-page"] [role="tablist"]{overflow-x:auto;scrollbar-width:none;max-width:100%}
+	[class*="--DivBodyContainer"]:has([class*="--DivLoginContainer"]){flex:none!important;height:auto!important;max-height:none!important;overflow:visible!important}
+}
