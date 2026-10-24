@@ -82,14 +82,9 @@ export function Open(Private, Sealed) {
 	} catch { return null; }
 }
 
-export async function IpFields(Pool, UserId, Info = {}) {
-	const Hash = HashIp(Info.ip);
-	if (!Hash) return [null, null];
-	let Consent = null;
-	if (UserId) {
-		Consent = (await Pool.query('UPDATE users SET ip_consent = COALESCE(ip_consent, $2) WHERE id = $1 RETURNING ip_consent', [UserId, Info.ipConsent ?? null])).rows[0]?.ip_consent ?? null;
-	}
-	return [Hash, Consent === true ? Seal(await InstanceKey(Pool), Info.ip) : null];
+// IP addresses are never stored: no plaintext, no hash, no sealed copy.
+export async function IpFields() {
+	return [null, null];
 }
 export const ConsentCookie = Request => ({ 1: true, 0: false })[/(?:^|;\s*)ztok_ip_consent=([01])/.exec(Request.headers?.cookie ?? '')?.[1]] ?? null;
 
