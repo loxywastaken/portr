@@ -64,7 +64,7 @@ export async function TranscodeVideo(Config, Input, MaxBytes, MaxSeconds) {
 	const Audio = Probe.streams.find(Track => Track.codec_type === 'audio');
 	const Playable = Track.codec_name === 'h264' && Track.pix_fmt === 'yuv420p' && Track.width <= 1080 && (!Audio || Audio.codec_name === 'aac');
 	const Encode = () => Run(Config.FFmpeg, [...Input_, '-vf', "scale='min(1080,iw)':-2", '-c:v', 'libx264', '-preset', 'veryfast',
-		'-crf', '25', '-pix_fmt', 'yuv420p', '-threads', '2', '-c:a', 'aac', '-b:a', '128k', ...Output], 'InvalidVideo', Math.max(180000, Duration * 1500));
+		'-crf', '25', '-pix_fmt', 'yuv420p', '-threads', '2', '-c:a', 'aac', '-b:a', '128k', ...Output], 'InvalidVideo', Math.max(600000, Duration * 6000));
 	try {
 		if (Playable) await Run(Config.FFmpeg, [...Input_, '-c', 'copy', ...Output]).catch(async () => { await rm(Video, { force: true }); await Encode(); });
 		else await Encode();
