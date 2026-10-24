@@ -1,0 +1,12 @@
+.git
+.env
+.env.*
+!.env.example
+node_modules
+client/tcs-preview
+media
+data
+artifacts
+dist
+*.log
+.owner-password

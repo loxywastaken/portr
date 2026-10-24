@@ -1,0 +1,15 @@
+/client/tcs-preview/
+data/
+media/
+artifacts/
+.env
+.env.*
+!.env.example
+.owner-password
+node_modules/
+dist/
+*.log
+.git/
+scripts/tcs-preview.mjs
+scripts/tcs-preview/
+.claude/
