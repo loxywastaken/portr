@@ -27,6 +27,8 @@ import { AssertVideoVisible } from './privacy.mjs';
 import { LoadSettings } from './settings.mjs';
 import { LoadCollectibles } from './decorations.mjs';
 import { PublishDue } from './studio.mjs';
+import { LiveRoutes } from './routes/live.mjs';
+import { EndAbandonedLives, LiveUpgrade } from './live.mjs';
 
 const Config = LoadConfig();
 const Pool = Database(Config.DatabaseUrl);
@@ -171,7 +173,7 @@ const Server = createServer(async (Request, Response) => {
 			Response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': NotFoundApi === 'common-app-context.json' ? 'no-store' : 'public, max-age=3600' });
 			return Response.end(Text);
 		}
-		if (await Admin(Context) || await Studio(Context) || await Account(Context) || await Api(Context) || await Pns(Context) || await Passport(Context) || await Im(Context) || await Stories(Context) || await Compatibility(Context)) return;
+		if (await Admin(Context) || await LiveRoutes(Context) || await Studio(Context) || await Account(Context) || await Api(Context) || await Pns(Context) || await Passport(Context) || await Im(Context) || await Stories(Context) || await Compatibility(Context)) return;
 		if (/^\/(?:api|passport|node-webapp|tiktok|tns-api|aweme|node|v[1-3])\//.test(Path)) {
 			const Key = `${Request.method} ${Path}`;
 			if (Unknown.size < 500) Unknown.set(Key, (Unknown.get(Key) ?? 0) + 1);
@@ -213,7 +215,9 @@ Server.on('upgrade', async (Request, Socket) => {
 	try {
 		const Local = Config.IsLocal ? [`localhost:${Config.Port}`, `127.0.0.1:${Config.Port}`] : [];
 		const Origins = [Config.Origin, ...Local.map(Host => `http://${Host}`)];
-		if (![new URL(Config.Origin).host, ...Local].includes(Request.headers.host) || !Origins.includes(Request.headers.origin) || new URL(Request.url, Config.Origin).pathname !== '/ws/v2') {
+		if (![new URL(Config.Origin).host, ...Local].includes(Request.headers.host) || !Origins.includes(Request.headers.origin)) { Socket.end('HTTP/1.1 403 Forbidden\r\nconnection: close\r\n\r\n'); return; }
+		if (new URL(Request.url, Config.Origin).pathname.startsWith('/ws/live/')) return await LiveUpgrade(Pool, Config, Request, Socket, await Viewer(Pool, Request));
+		if (new URL(Request.url, Config.Origin).pathname !== '/ws/v2') {
 			Socket.end('HTTP/1.1 403 Forbidden\r\nconnection: close\r\n\r\n'); return;
 		}
 		const User = Config.Features?.messages === false ? null : await Viewer(Pool, Request);
@@ -229,6 +233,7 @@ Server.on('upgrade', async (Request, Socket) => {
 // Phone uploads can be large and slow to send, so allow up to 30 minutes for a request body to arrive.
 Server.requestTimeout = 1800000;
 Server.headersTimeout = 15000;
+await EndAbandonedLives(Pool).catch(() => console.error('LiveCleanupFailed'));
 Server.listen(Config.Port, Config.Host, () => console.log(`ztok ready: ${Config.Origin}`));
 setTimeout(() => WarmDownloads(Pool, Config).catch(() => console.error('DownloadWarmupFailed')), 30000).unref();
 let Closing = false;
