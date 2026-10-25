@@ -26,6 +26,7 @@ import { Upgrade, Sweep } from './im/frontier.mjs';
 import { AssertVideoVisible } from './privacy.mjs';
 import { LoadSettings } from './settings.mjs';
 import { LoadCollectibles } from './decorations.mjs';
+import { PublishDue } from './studio.mjs';
 
 const Config = LoadConfig();
 const Pool = Database(Config.DatabaseUrl);
@@ -42,6 +43,7 @@ const Csp = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'
 const Cleanup = setInterval(() => {
 	Pool.query('DELETE FROM sessions WHERE expires_at < now()').catch(() => console.error('SessionCleanupFailed'));
 	Pool.query("DELETE FROM video_views WHERE viewed_at < now() - interval '6 hours'").catch(() => console.error('ViewCleanupFailed'));
+	Pool.query("DELETE FROM profile_views WHERE viewed_at < now() - interval '6 hours'").catch(() => console.error('ProfileViewCleanupFailed'));
 	Pool.query("UPDATE user_events SET ip_hash = NULL, ip_sealed = NULL WHERE ip_hash IS NOT NULL AND created_at < now() - interval '90 days'").catch(() => console.error('EventCleanupFailed'));
 	Pool.query('DELETE FROM data_exports WHERE expires_at < now()').catch(() => console.error('ExportCleanupFailed'));
 	DeleteExpiredAccounts(Pool, Config).catch(() => console.error('AccountDeletionFailed'));
@@ -49,6 +51,8 @@ const Cleanup = setInterval(() => {
 	SweepStories(Pool, Config).catch(() => console.error('StoryCleanupFailed'));
 	WarmDownloads(Pool, Config).catch(() => console.error('DownloadWarmupFailed'));
 }, 3600000).unref();
+// Scheduled Studio posts go out within half a minute of their time.
+const Publisher = setInterval(() => PublishDue(Pool).catch(() => console.error('ScheduledPublishFailed')), 30000).unref();
 
 // Client assets are rewritten once and kept in memory, and browsers may keep them for a day and then revalidate
 // with an ETag, instead of downloading every file again on each page view.
@@ -122,7 +126,12 @@ const Server = createServer(async (Request, Response) => {
 			if (Video) {
 				const Viewer_ = await Viewer(Pool, Request);
 				if (!(Url.searchParams.get('review') === '1' && Viewer_?.role === 'admin')) await AssertVideoVisible(Pool, Video.id, Viewer_?.id);
-			} else if (Name.endsWith('.mp4') || /^[a-f0-9-]{36}\.jpg$/.test(Name)) throw new HttpError(404, 'MediaNotFound');
+			} else if (Name.endsWith('.mp4') || /^[a-f0-9-]{36}\.jpg$/.test(Name)) {
+				// Drafts and scheduled posts: only their author can load the files.
+				const Draft = (await Pool.query('SELECT author_id FROM video_drafts WHERE file_name = $1 OR cover_name = $1', [Name])).rows[0];
+				if (!Draft || Draft.author_id !== (await Viewer(Pool, Request))?.id) throw new HttpError(404, 'MediaNotFound');
+				return await ServeMedia(Request, Response, Config, Name, true);
+			}
 			return await ServeMedia(Request, Response, Config, Name, Boolean(Video));
 		}
 		if (Path === '/source') {
@@ -225,7 +234,7 @@ let Closing = false;
 async function Shutdown() {
 	if (Closing) return;
 	Closing = true;
-	clearInterval(Cleanup); clearInterval(SocketSweep); Limiter.Close();
+	clearInterval(Cleanup); clearInterval(Publisher); clearInterval(SocketSweep); Limiter.Close();
 	const Timer = setTimeout(() => process.exit(1), 10000).unref();
 	Server.close(async () => { await Pool.end(); clearTimeout(Timer); process.exit(0); });
 }

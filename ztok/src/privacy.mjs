@@ -36,7 +36,9 @@ export async function SetFollow(Pool, Viewer, Target, On) {
 		if (!Account || Account.suspended_at) throw new HttpError(404, 'UserNotFound');
 		if (On && Account.blocked) throw new HttpError(403, 'BlockedRelationship');
 		if (!On) {
-			await Client.query('DELETE FROM follows WHERE follower_id = $1 AND following_id = $2', [Viewer, Target]);
+			const Removed = await Client.query('DELETE FROM follows WHERE follower_id = $1 AND following_id = $2', [Viewer, Target]);
+			if (Removed.rowCount) await Client.query(`INSERT INTO user_daily_stats(user_id, day, unfollows) VALUES ($1, (now() AT TIME ZONE 'UTC')::date, 1)
+				ON CONFLICT (user_id, day) DO UPDATE SET unfollows = user_daily_stats.unfollows + 1`, [Target]);
 			await Client.query('DELETE FROM follow_requests WHERE follower_id = $1 AND following_id = $2', [Viewer, Target]);
 		} else if (Account.private_account) {
 			await Client.query('INSERT INTO follow_requests(follower_id, following_id) SELECT $1, $2 WHERE NOT EXISTS (SELECT 1 FROM follows WHERE follower_id = $1 AND following_id = $2) ON CONFLICT DO NOTHING', [Viewer, Target]);

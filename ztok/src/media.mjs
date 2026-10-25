@@ -35,8 +35,13 @@ function Run(Executable, Args, Failure = 'InvalidVideo', Timeout = 180000, Nice 
 export async function ImportVideo(Pool, Config, UserId, Input, Description = '', Settings = { visibility: 'public', comment_permission: 'default' }) {
 	PostSettings(Settings.visibility, Settings.comment_permission);
 	if (typeof Description !== 'string' || Description.length > 2200) throw new HttpError(400, 'DescriptionTooLong');
-	const Video = await TranscodeVideo(Config, Input, Config.MaxVideoBytes, Config.MaxVideoSeconds);
+	const Video = await TranscodeVideo(Config, Input, Config.MaxVideoBytes, Config.MaxVideoSeconds, Settings.coverTime);
 	try {
+		if (Settings.draft) {
+			const Draft = await Pool.query('INSERT INTO video_drafts(author_id, description, file_name, cover_name, width, height, duration, bytes, visibility, comment_permission, category, publish_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id',
+				[UserId, Description, Video.VideoName, Video.CoverName, Video.Width, Video.Height, Video.Duration, Video.Bytes, Settings.visibility, Settings.comment_permission, Settings.category ?? GuessCategory(Description), Settings.publishAt ?? null]);
+			return { draft: Draft.rows[0].id };
+		}
 		const Result = await Pool.query("INSERT INTO videos(author_id, description, file_name, cover_name, width, height, duration, bytes, visibility, comment_permission, category, story_expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, CASE WHEN $12 THEN now() + interval '24 hours' END) RETURNING id",
 			[UserId, Description, Video.VideoName, Video.CoverName, Video.Width, Video.Height, Video.Duration, Video.Bytes, Settings.visibility, Settings.comment_permission, Settings.story ? 0 : Settings.category ?? GuessCategory(Description), Boolean(Settings.story)]);
 		return Result.rows[0].id;
@@ -46,7 +51,7 @@ export async function ImportVideo(Pool, Config, UserId, Input, Description = '',
 	}
 }
 
-export async function TranscodeVideo(Config, Input, MaxBytes, MaxSeconds) {
+export async function TranscodeVideo(Config, Input, MaxBytes, MaxSeconds, CoverTime = 0) {
 	const InputInfo = await stat(Input);
 	if (!InputInfo.size || InputInfo.size > MaxBytes) throw new HttpError(413, 'VideoTooLarge');
 	const Probe = JSON.parse(await Run(Config.FFprobe, ['-v', 'error', '-protocol_whitelist', 'file,pipe', '-format_whitelist', 'mov,matroska,webm', '-show_streams', '-show_format', '-of', 'json', Input]));
@@ -68,7 +73,7 @@ export async function TranscodeVideo(Config, Input, MaxBytes, MaxSeconds) {
 	try {
 		if (Playable) await Run(Config.FFmpeg, [...Input_, '-c', 'copy', ...Output]).catch(async () => { await rm(Video, { force: true }); await Encode(); });
 		else await Encode();
-		await Run(Config.FFmpeg, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-i', Video, '-frames:v', '1', '-threads', '1', '-n', Cover]);
+		await Frame(Config, Video, Cover, Math.min(Math.max(Number(CoverTime) || 0, 0), Math.max(0, Math.min(Duration, MaxSeconds) - 0.1)));
 		const OutputProbe = JSON.parse(await Run(Config.FFprobe, ['-v', 'error', '-show_streams', '-of', 'json', Video]));
 		const OutputTrack = OutputProbe.streams.find(Track => Track.codec_type === 'video');
 		const Info = await stat(Video);
@@ -77,6 +82,22 @@ export async function TranscodeVideo(Config, Input, MaxBytes, MaxSeconds) {
 		await Promise.allSettled([rm(Video, { force: true }), rm(Cover, { force: true })]);
 		throw Error;
 	}
+}
+
+// A cover is one frame of the video. Seeking before the input is fast; if the time lands past the last
+// frame, fall back to the first frame so a cover always exists.
+async function Frame(Config, Video, Cover, Seconds = 0) {
+	const Args = Time => ['-hide_banner', '-loglevel', 'error', '-nostdin', ...(Time ? ['-ss', Time.toFixed(2)] : []), '-i', Video, '-frames:v', '1', '-q:v', '3', '-threads', '1', '-n', Cover];
+	await Run(Config.FFmpeg, Args(Seconds));
+	if (!(await stat(Cover).catch(() => null))?.size) { await rm(Cover, { force: true }); await Run(Config.FFmpeg, Args(0)); }
+}
+
+// Studio → Edit cover: makes a new cover file from the chosen second and returns its name.
+export async function CoverFromFrame(Config, FileName, Seconds) {
+	if (!SafeName.test(FileName)) throw new HttpError(400, 'InvalidMediaName');
+	const Name = `${randomUUID()}.jpg`;
+	await Frame(Config, join(Config.MediaDir, FileName), join(Config.MediaDir, Name), Math.max(0, Number(Seconds) || 0));
+	return Name;
 }
 
 export async function SaveAvatar(Config, UserId, Bytes) {

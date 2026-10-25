@@ -165,8 +165,19 @@ export async function RecordView(Pool, VideoId, Viewer) {
 	await Pool.query(`WITH Video AS (SELECT id FROM videos WHERE id = $1),
 		Seen AS (INSERT INTO video_views(video_id, viewer) SELECT id, $2 FROM Video
 			ON CONFLICT (video_id, viewer) DO UPDATE SET viewed_at = now() WHERE video_views.viewed_at < now() - interval '6 hours'
-			RETURNING video_id)
+			RETURNING video_id),
+		Daily AS (INSERT INTO video_daily_stats(video_id, day, views) SELECT video_id, (now() AT TIME ZONE 'UTC')::date, 1 FROM Seen
+			ON CONFLICT (video_id, day) DO UPDATE SET views = video_daily_stats.views + 1)
 		UPDATE videos SET view_count = view_count + 1 WHERE id IN (SELECT video_id FROM Seen)`, [VideoId, Viewer]);
+}
+
+// Profile views for Studio analytics: once per viewer every 6 hours, never your own.
+export async function RecordProfileView(Pool, UserId, Viewer) {
+	await Pool.query(`WITH Seen AS (INSERT INTO profile_views(user_id, viewer) VALUES ($1, $2)
+			ON CONFLICT (user_id, viewer) DO UPDATE SET viewed_at = now() WHERE profile_views.viewed_at < now() - interval '6 hours'
+			RETURNING user_id)
+		INSERT INTO user_daily_stats(user_id, day, profile_views) SELECT user_id, (now() AT TIME ZONE 'UTC')::date, 1 FROM Seen
+			ON CONFLICT (user_id, day) DO UPDATE SET profile_views = user_daily_stats.profile_views + 1`, [UserId, Viewer]);
 }
 
 export async function FindUser(Pool, Value, ById = false) {
