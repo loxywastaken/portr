@@ -26,3 +26,8 @@
 /* "Use sound" on sound pages */
 .ZtokUseSound{display:inline-flex;align-items:center;gap:8px;height:40px;margin-top:12px;padding:0 20px;border-radius:8px;background:#fe2c55;color:#fff!important;font-weight:600;font-size:15px;text-decoration:none}
 .ZtokUseSound:hover{filter:brightness(1.08)}.ZtokUseSound:focus-visible{outline:2px solid #25f4ee;outline-offset:2px}
+
+/* LIVE badge on profiles */
+.ZtokLiveBadge{display:inline-flex;align-items:center;height:24px;margin-right:10px;padding:0 10px;border-radius:4px;background:#fe2c55;color:#fff!important;font-size:13px;font-weight:800;letter-spacing:.5px;text-decoration:none;vertical-align:middle;animation:ZtokLivePulse 1.6s ease-in-out infinite}
+@keyframes ZtokLivePulse{50%{box-shadow:0 0 0 4px rgba(254,44,85,.35)}}
+@media (prefers-reduced-motion:reduce){.ZtokLiveBadge{animation:none}}
