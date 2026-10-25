@@ -108,6 +108,22 @@ export function SessionCookie(Config, Value, Clear = false) {
 	return `ztok_session=${Value}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${Clear ? 0 : 2592000}${Config.SecureCookies ? '; Secure' : ''}`;
 }
 
+// Switch account: the other accounts signed in on this browser keep their session tokens in an HttpOnly
+// cookie, so people can move between them without typing their password again.
+export const CookieValue = (Request, Name) => Request.headers.cookie?.split(';').map(Value => Value.trim()).find(Value => Value.startsWith(`${Name}=`))?.slice(Name.length + 1) ?? '';
+export const DeviceTokens = Request => [...new Set(CookieValue(Request, 'ztok_accounts').split('.').filter(Value => /^[a-f0-9]{64}$/.test(Value)))].slice(0, 8);
+export function AccountsCookie(Config, Tokens) {
+	return `ztok_accounts=${Tokens.join('.')}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${Tokens.length ? 2592000 : 0}${Config.SecureCookies ? '; Secure' : ''}`;
+}
+export async function DeviceAccounts(Pool, Tokens) {
+	if (!Tokens.length) return [];
+	const Rows = (await Pool.query(`SELECT s.token_hash, u.id, u.username, u.display_name, u.avatar_name FROM sessions s JOIN users u ON u.id = s.user_id
+		WHERE s.token_hash = ANY($1::text[]) AND s.expires_at > now() AND u.suspended_at IS NULL AND u.deactivated_at IS NULL`, [Tokens.map(Hash)])).rows;
+	const ByHash = new Map(Rows.map(Row => [Row.token_hash, Row]));
+	const Seen = new Set();
+	return Tokens.map(Token => ({ Token, Row: ByHash.get(Hash(Token)) })).filter(Entry => Entry.Row && !Seen.has(Entry.Row.id) && Seen.add(Entry.Row.id));
+}
+
 export function RequireUser(User) {
 	if (!User) throw new HttpError(401, 'NotLoggedIn');
 	return User;
