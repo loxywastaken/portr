@@ -2411,3 +2411,60 @@ test('photo posts: staged photos become a carousel post with a slideshow, only t
 	for (const Name of [Files.file_name, Files.cover_name, Staged[0].name, Staged[1].name]) assert.ok(!Left.includes(Name), Name);
 	assert.ok(Left.includes(Third.name));
 });
+
+test('coins and gifts: free daily coins, gifts cost coins and show as the sender\'s comment', async () => {
+	const Giver = await CreateUser(Pool, { username: 'gift_giver', displayName: 'Gift Giver', password: Password }, 'closed', true);
+	const Sign = async Name => { const Signed = await Login(Pool, Name, Password); return { cookie: `ztok_session=${Signed.Token}`, 'x-csrf-token': Signed.Csrf }; };
+	const As = await Sign('gift_giver'), AsOwner = await Sign('owner');
+	assert.deepEqual(await (await Call('/api/v1/coins', 'GET', undefined, As)).json().then(Data => [Data.balance, Data.claimable, Data.claim]), [0, true, 1100]);
+	assert.equal((await Call('/api/v1/gifts', 'POST', { video: VideoId, gift: 'rose' }, As)).status, 402);
+	const Claimed = await (await Call('/api/v1/coins/claim', 'POST', {}, As)).json();
+	assert.deepEqual([Claimed.balance, Claimed.added, Claimed.welcome], [1100, 1100, 1000]);
+	assert.equal((await Call('/api/v1/coins/claim', 'POST', {}, As)).status, 409);
+	assert.equal((await Call('/api/v1/gifts', 'POST', { video: VideoId, gift: 'diamond-car' }, As)).status, 400);
+	assert.equal((await Call('/api/v1/gifts', 'POST', { video: VideoId, gift: 'rose' }, AsOwner)).status, 400);
+	const Sent = await Call('/api/v1/gifts', 'POST', { video: VideoId, gift: 'crown', message: 'so good' }, As);
+	assert.equal(Sent.status, 201); assert.equal((await Sent.json()).balance, 1001);
+	const Gift = (await Pool.query('SELECT g.recipient_id, g.coins, c.body FROM gifts g JOIN comments c ON c.id = g.comment_id WHERE g.sender_id = $1', [Giver.id])).rows[0];
+	assert.deepEqual([Gift.recipient_id, Gift.coins, Gift.body], [Owner.id, 99, '👑 Sent a Crown · so good']);
+	assert.equal((await Pool.query("SELECT sum(amount)::int AS n FROM coin_events WHERE user_id = $1", [Giver.id])).rows[0].n, 1001);
+	const Page = await (await Call('/coin', 'GET', undefined, AsOwner)).text();
+	assert.ok(Page.includes('Gift Giver') && Page.includes('sent a Crown'));
+	assert.ok((await (await Call(`/tiktokstudio/analytics/${VideoId}?metric=gifts`, 'GET', undefined, AsOwner)).text()).includes('Gift coins'));
+	await Pool.query("UPDATE users SET coins_claimed_on = (now() AT TIME ZONE 'UTC')::date - 1 WHERE id = $1", [Giver.id]);
+	assert.equal((await (await Call('/api/v1/coins/claim', 'POST', {}, As)).json()).added, 100);
+});
+
+test('sounds: reuse a public video\'s audio, the sound page lists every video using it', async () => {
+	await CreateUser(Pool, { username: 'sound_maker', displayName: 'Sound Maker', password: Password }, 'closed', true);
+	const User_ = await CreateUser(Pool, { username: 'sound_user', displayName: 'Sound User', password: Password }, 'closed', true);
+	const Sign = async Name => { const Signed = await Login(Pool, Name, Password); return { cookie: `ztok_session=${Signed.Token}`, 'x-csrf-token': Signed.Csrf }; };
+	const Maker = await Sign('sound_maker'), As = await Sign('sound_user');
+	const Clip = join(Directory, 'with-audio.mp4');
+	assert.equal(spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=96x160:rate=12:duration=2', '-f', 'lavfi', '-i', 'sine=frequency=500:duration=2', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', '-y', Clip]).status, 0);
+	const Bytes = await readFile(Clip);
+	const Source = (await (await fetch(`${Origin}/api/v1/videos?description=My%20sound`, { method: 'POST', headers: { ...Maker, 'content-type': 'video/mp4' }, body: Bytes })).json()).id;
+	const Silent = await readFile(join(Directory, 'input.mp4'));
+	assert.ok((await (await Call('/api/v1/sounds?q=sound_maker', 'GET', undefined, As)).json()).sounds.some(Sound => Sound.id === Source));
+	assert.equal((await (await fetch(`${Origin}/api/v1/videos?sound=${VideoId}`, { method: 'POST', headers: { ...As, 'content-type': 'video/mp4' }, body: Silent })).json()).error, 'NoAudio');
+	const Used = await fetch(`${Origin}/api/v1/videos?description=Using%20it&sound=${Source}&original_volume=50`, { method: 'POST', headers: { ...As, 'content-type': 'video/mp4' }, body: Silent });
+	assert.equal(Used.status, 201); const UsedId = (await Used.json()).id;
+	const Sound = (await Pool.query('SELECT * FROM sounds WHERE id = $1', [Source])).rows[0];
+	assert.equal(Sound.title, 'original sound'); assert.ok((await readdir(Directory)).includes(Sound.file_name));
+	const Row = (await Pool.query('SELECT file_name, sound_id FROM videos WHERE id = $1', [UsedId])).rows[0];
+	assert.equal(Row.sound_id, Source);
+	const Probe = JSON.parse(spawnSync('ffprobe', ['-v', 'error', '-show_streams', '-of', 'json', join(Directory, Row.file_name)]).stdout.toString());
+	assert.ok(Probe.streams.some(Track => Track.codec_type === 'audio'));
+	const Item = (await (await Call(`/api/item/detail/?itemId=${UsedId}`, 'GET', undefined, As)).json()).itemInfo.itemStruct;
+	assert.deepEqual([Item.music.id, Item.music.authorName, Item.music.title], [Source, 'Sound Maker', 'original sound']);
+	const Detail = await (await Call(`/api/music/detail/?musicId=${Source}`, 'GET', undefined, As)).json();
+	assert.equal(Detail.musicInfo.stats.videoCount, 2); assert.ok(Detail.musicInfo.music.playUrl.endsWith('.m4a')); assert.equal(Detail.musicInfo.author.uniqueId, 'sound_maker');
+	const List = await (await Call(`/api/music/item_list/?musicID=${Source}&count=30&cursor=0`, 'GET', undefined, As)).json();
+	assert.deepEqual(List.itemList.map(Entry => Entry.id), [UsedId, Source]);
+	// Private accounts' videos can't be used as sounds.
+	await Pool.query('UPDATE users SET private_account = true WHERE username = $1', ['sound_maker']);
+	await Pool.query('DELETE FROM sounds WHERE id = $1', [Source]);
+	assert.equal((await (await fetch(`${Origin}/api/v1/videos?sound=${Source}`, { method: 'POST', headers: { ...As, 'content-type': 'video/mp4' }, body: Silent })).json()).error, 'SoundNotFound');
+	await Pool.query('UPDATE users SET private_account = false WHERE username = $1', ['sound_maker']);
+	void User_;
+});
