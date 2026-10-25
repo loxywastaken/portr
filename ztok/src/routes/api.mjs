@@ -3,7 +3,7 @@ import { rm } from 'node:fs/promises';
 import { HttpError, Id, Json, ReadBody, ReadRaw, RequireMethod } from '../http.mjs';
 import { CreateUser, Login, RequireCsrf, SessionCookie, ClientInfo, RecordEvent, AccountsCookie, CookieValue, DeviceAccounts, DeviceTokens } from '../auth.mjs';
 import { AvatarUrl, UserShape, UserStats, FindUser, Videos, SetRelation, AddComment, SetBlock } from '../store.mjs';
-import { DownloadCopy, ImportVideo, ReceiveVideo, RemoveMedia, SaveBanner, ServeMedia, WarmDownloads } from '../media.mjs';
+import { DownloadCopy, ImportVideo, InsertPost, PhotoSlideshow, SavePhoto, ReceiveVideo, RemoveMedia, SaveBanner, ServeMedia, WarmDownloads } from '../media.mjs';
 import { AssertAllowed, RemovedSql } from '../moderation.mjs';
 import { BadgeCatalog, BadgeSvg, PrideFlag, PublicBadges } from '../badges.mjs';
 import { AvatarDecoration, DecorationCatalog, DecorationImage, Nameplate, NameplateCatalog, NameplateFile, NameStyle, PublicDecoration, PublicNameplate, PublicNameStyle } from '../decorations.mjs';
@@ -220,6 +220,45 @@ export async function Api(Context) {
 			Json(Response, Created?.draft ? { draft: Created.draft, scheduled: Boolean(Settings.publishAt) } : { id: Created }, 201);
 			WarmDownloads(Pool, Config).catch(() => {});
 		} finally { Context.Uploading.value--; if (File) await rm(File, { force: true }); }
+		return true;
+	}
+	// Photo posts: photos are uploaded one at a time (stage), then posted together in order.
+	if (Path === '/api/v1/photos/stage') {
+		RequireMethod(Request, ['POST']); RequireCsrf(Request, User);
+		if (Config.Features?.upload === false) throw new HttpError(403, 'UploadsDisabled');
+		await AssertAllowed(Pool, User, 'upload');
+		if (!/^image\/(?:png|jpeg|webp)$/.test(Request.headers['content-type'] ?? '')) throw new HttpError(415, 'ExpectedImageBody');
+		if (Number(Request.headers['content-length']) > 20 * 1024 * 1024) throw new HttpError(413, 'ImageTooLarge');
+		Limiter.Hit(`photo:${User.id}`, 120, 3600000);
+		if ((await Pool.query("SELECT count(*)::int AS n FROM photo_uploads WHERE owner_id = $1 AND created_at > now() - interval '1 day'", [User.id])).rows[0].n >= 300) throw new HttpError(429, 'TryLater');
+		const Photo = await SavePhoto(Config, await ReadRaw(Request, 20 * 1024 * 1024));
+		await Pool.query('INSERT INTO photo_uploads(name, owner_id, width, height) VALUES ($1, $2, $3, $4)', [Photo.name, User.id, Photo.width, Photo.height]);
+		Json(Response, { ...Photo, url: `${Config.Origin}/media/${Photo.name}` }, 201); return true;
+	}
+	if (Path === '/api/v1/photos') {
+		RequireMethod(Request, ['POST']); RequireCsrf(Request, User);
+		if (Config.Features?.upload === false) throw new HttpError(403, 'UploadsDisabled');
+		await AssertAllowed(Pool, User, 'upload');
+		const Body = await ReadBody(Request, 65536);
+		const Names = Array.isArray(Body.images) ? Body.images.map(String) : [];
+		if (!Names.length || Names.length > 35 || new Set(Names).size !== Names.length) throw new HttpError(400, 'InvalidPhotos');
+		const Staged = new Map((await Pool.query('SELECT name, width, height FROM photo_uploads WHERE owner_id = $1 AND name = ANY($2::text[])', [User.id, Names])).rows.map(Row => [Row.name, Row]));
+		if (Staged.size !== Names.length) throw new HttpError(400, 'InvalidPhotos');
+		const Description = String(Body.description ?? '');
+		if (Description.length > 2200) throw new HttpError(400, 'DescriptionTooLong');
+		const Mode = Body.mode ?? 'post', Story = Body.story === true || Body.story === '1';
+		if (!['post', 'draft', 'schedule'].includes(Mode) || (Mode !== 'post' && Story)) throw new HttpError(400, 'InvalidPostMode');
+		const Settings = { ...PostSettings(Body.visibility ?? 'public', Body.comments ?? 'default'), category: Category(Body.category), story: Story, draft: Mode !== 'post', publishAt: Mode === 'schedule' ? ScheduleTime(Body.publish_at) : null };
+		Limiter.Hit(`upload:${User.id}`, 5, 3600000);
+		if (Context.Uploading.value >= 2) throw new HttpError(503, 'UploadsBusy');
+		Context.Uploading.value++;
+		try {
+			const Show = await PhotoSlideshow(Config, Names.map(Name => Staged.get(Name)));
+			const Created = await InsertPost(Pool, Config, User.id, Show, Description, Settings);
+			await Pool.query('DELETE FROM photo_uploads WHERE name = ANY($1::text[])', [Names]);
+			Json(Response, Created?.draft ? { draft: Created.draft, scheduled: Boolean(Settings.publishAt) } : { id: Created }, 201);
+			if (!Created?.draft) WarmDownloads(Pool, Config).catch(() => {});
+		} finally { Context.Uploading.value--; }
 		return true;
 	}
 	if (Path === '/api/v1/profile/privacy') {

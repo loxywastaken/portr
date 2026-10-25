@@ -6,7 +6,7 @@ import { Hash, RateLimiter, RequireCsrf, Token } from '../auth.mjs';
 import { HashIp, InstanceKey, LocalSeal, Open, Unlock } from '../ips.mjs';
 import { SendMail } from '../mail.mjs';
 import { CollectibleCounts, SaveCollectibles } from '../decorations.mjs';
-import { RemoveMedia, SaveBrandImage, WarmDownloads } from '../media.mjs';
+import { RemoveMedia, SaveBrandImage, WarmDownloads, RemovePostMedia } from '../media.mjs';
 import { AvatarUrl, UserStats } from '../store.mjs';
 import { ClientDir, Root } from '../client/archive.mjs';
 import { BrandSlots, Features, MiscFeatures, RestoreEnvMail, SaveSetting, Settings } from '../settings.mjs';
@@ -44,8 +44,8 @@ async function Audit(Pool, User, Action, Target, Detail = '') {
 }
 
 async function DeleteVideos(Pool, Config, Where, Values) {
-	const Removed = await Pool.query(`DELETE FROM videos WHERE ${Where} RETURNING file_name, cover_name, download_name`, Values);
-	for (const Row of Removed.rows) await Promise.all([RemoveMedia(Config, Row.file_name), RemoveMedia(Config, Row.cover_name), Row.download_name && RemoveMedia(Config, Row.download_name)]);
+	const Removed = await Pool.query(`DELETE FROM videos WHERE ${Where} RETURNING file_name, cover_name, download_name, images`, Values);
+	await RemovePostMedia(Config, Removed.rows);
 	return Removed.rowCount;
 }
 

@@ -82,7 +82,7 @@ const Tracked = Since => `<p class="footnote">Day-by-day views are counted from 
 
 function PostRow(Row, Private) {
 	return `<tr>
-		<td><a class="post-cell" href="/tiktokstudio/content/${Row.id}"><img src="${Media(Row.cover_name)}" alt="" loading="lazy"><span><span class="caption">${Caption(Row.description)}</span><small>${Clock(Row.duration)}${Row.pinned_at ? ' · <span class="pill">Pinned</span>' : ''}${Row.removed ? ' · <span class="pill warn">Removed</span>' : ''}</small></span></a></td>
+		<td><a class="post-cell" href="/tiktokstudio/content/${Row.id}"><img src="${Media(Row.cover_name)}" alt="" loading="lazy"><span><span class="caption">${Caption(Row.description)}</span><small>${Row.photos ? `Photos · ${Row.photos}` : Clock(Row.duration)}${Row.pinned_at ? ' · <span class="pill">Pinned</span>' : ''}${Row.removed ? ' · <span class="pill warn">Removed</span>' : ''}</small></span></a></td>
 		<td data-label="Posted">${When(Row.created_at, 'date')}</td><td data-label="Privacy">${Escape(VisibilityLabel(Private, Row.visibility))}</td>
 		<td data-label="Views" class="num">${Number_(Row.views)}</td><td data-label="Likes" class="num">${Number_(Row.likes)}</td><td data-label="Comments" class="num">${Number_(Row.comments)}</td>
 		<td class="row-actions"><a href="/tiktokstudio/content/${Row.id}">Edit</a><a href="/tiktokstudio/analytics/${Row.id}">Analytics</a></td></tr>`;
@@ -101,12 +101,14 @@ function Editor(User, Row, { Draft: IsDraft }) {
 		<label class="radio"><input type="radio" name="when" value="draft"${Row.publish_at ? '' : ' checked'}> Keep as draft</label>
 		<label class="radio"><input type="radio" name="when" value="schedule"${Row.publish_at ? ' checked' : ''}> Schedule</label>
 		<input type="datetime-local" name="publish_local" data-iso="${Row.publish_at ? new Date(Row.publish_at).toISOString() : ''}" aria-label="Date and time to post"><input type="hidden" name="publish_at">
-		<small>15 minutes to 30 days from now, in your time zone.</small></fieldset>` : '';
+		<small data-for="schedule">15 minutes to 30 days from now, in your time zone.</small></fieldset>` : '';
 	return `<div class="editor">
-		<section class="card editor-media"><video src="${Media(Row.file_name)}" poster="${Media(Row.cover_name)}" controls playsinline preload="metadata" class="cover-video"></video>
+		${Row.images?.length ? `<section class="card editor-media"><ol class="photo-strip" aria-label="Photos">${Row.images.map((Image, Index) => `<li><img src="${Media(Image.name)}" alt="Photo ${Index + 1} of ${Row.images.length}" loading="lazy"><span class="photo-index">${Index + 1}</span></li>`).join('')}</ol>
+			<p class="field-help">${Row.images.length} photo${Row.images.length === 1 ? '' : 's'}. The first photo is the cover, and each one shows for 3 seconds.</p></section>`
+		: `<section class="card editor-media"><video src="${Media(Row.file_name)}" poster="${Media(Row.cover_name)}" controls playsinline preload="metadata" class="cover-video"></video>
 			<form method="post" action="${Action}" class="cover-form">${Csrf(User)}<input type="hidden" name="action" value="cover">
 				<label class="field">Cover<input type="range" name="cover_time" min="0" max="${Math.max(0, Row.duration - 0.1).toFixed(2)}" step="0.1" value="0" data-cover-for=".cover-video"></label>
-				<p class="field-help">Drag to pick a frame, then save it as the cover.</p><button class="secondary">Set as cover</button></form></section>
+				<p class="field-help">Drag to pick a frame, then save it as the cover.</p><button class="secondary">Set as cover</button></form></section>`}
 		<section class="card editor-details"><form method="post" action="${Action}" class="details-form">${Csrf(User)}
 			<label class="field">Caption<textarea name="description" maxlength="2200" rows="5" data-count>${Escape(Row.description)}</textarea><span class="count">${Row.description.length} / 2200</span></label>
 			${Select('visibility', 'Who can watch', Visibility(User.private_account, Row.visibility), Row.visibility)}
@@ -293,10 +295,13 @@ async function Handle(Context, Path) {
 		if (Config.Features?.upload === false) throw new HttpError(403, 'UploadsDisabled');
 		Content = `<header class="page-head"><h1>Upload</h1><a href="/tiktokstudio/content?tab=drafts">Drafts (${Totals_.drafts})</a></header>
 		<form id="upload" class="editor upload">
-			<section class="card editor-media"><label id="drop-zone" tabindex="0"><span class="upload-symbol" aria-hidden="true">${Icon('plus')}</span><strong>Select video to upload</strong><span>Or drag and drop it here</span><span class="file-help">MP4, MOV or WebM · up to ${Math.round(Config.MaxVideoBytes / 1024 / 1024)} MB · up to ${Clock(Config.MaxVideoSeconds)} long</span><input required name="video" type="file" accept="video/*"><span class="button">Select video</span></label>
+			<section class="card editor-media"><div class="segmented kind" role="radiogroup" aria-label="What to post"><label><input type="radio" name="kind" value="video" checked> Video</label><label><input type="radio" name="kind" value="photos"> Photos</label></div>
+				<div id="photo-mode" hidden><label id="photo-drop" class="drop" tabindex="0"><span class="upload-symbol" aria-hidden="true">${Icon('plus')}</span><strong>Select photos</strong><span>Or drag and drop them here</span><span class="file-help">JPG, PNG or WebP · up to 35 photos · 20 MB each</span><input name="photos" type="file" accept="image/png,image/jpeg,image/webp" multiple><span class="button">Select photos</span></label>
+					<ol id="photo-list" class="photo-grid" aria-label="Photos, in posting order"></ol><p id="photo-help" class="field-help" hidden>The first photo is the cover. Drag photos, or use the arrows, to change the order. Each one shows for 3 seconds.</p></div>
+				<div id="video-mode"><label id="drop-zone" tabindex="0"><span class="upload-symbol" aria-hidden="true">${Icon('plus')}</span><strong>Select video to upload</strong><span>Or drag and drop it here</span><span class="file-help">MP4, MOV or WebM · up to ${Math.round(Config.MaxVideoBytes / 1024 / 1024)} MB · up to ${Clock(Config.MaxVideoSeconds)} long</span><input required name="video" type="file" accept="video/*"><span class="button">Select video</span></label>
 				<video id="video-preview" class="cover-video" controls playsinline hidden></video><p id="file-name" class="muted"></p>
 				<div id="cover-picker" hidden><label class="field">Cover<input type="range" name="cover_time" min="0" max="0" step="0.1" value="0" data-cover-for="#video-preview"></label><p class="field-help">Drag to pick the frame shown before people tap play.</p></div>
-				<button id="change-video" class="secondary" type="button" hidden>Change video</button></section>
+				<button id="change-video" class="secondary" type="button" hidden>Change video</button></div></section>
 			<section class="card editor-details"><label class="field">Caption<textarea name="description" maxlength="2200" rows="5" placeholder="Describe your video. Add #hashtags and @mentions." data-count></textarea><span class="count">0 / 2200</span></label>
 				${Select('visibility', 'Who can watch', Visibility(User.private_account), 'public')}${Select('comments', 'Who can comment', Comments, 'default')}${Select('category', 'Explore category', CategoryOptions, '')}
 				<fieldset class="field when"><legend>When to post</legend><label class="radio"><input type="radio" name="when" value="now" checked> Now</label><label class="radio"><input type="radio" name="when" value="schedule"> Schedule</label><label class="radio"><input type="radio" name="when" value="story"> Story (24 hours)</label>
