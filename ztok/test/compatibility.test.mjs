@@ -128,7 +128,9 @@ test('native Passport sign-in decodes the original SDK request and creates a rev
 	assert.equal((await (await Call('/api/v1/session', 'GET', undefined, { cookie: NativeCookie })).json()).user, null);
 	const Guest = ReadJsonScript(await (await Call('/', 'GET', undefined, { cookie: NativeCookie })).text(), '__UNIVERSAL_DATA_FOR_REHYDRATION__').__DEFAULT_SCOPE__['webapp.app-context'];
 	assert.equal(Guest.user, undefined);
-	assert.equal((await Call('/_ztok/bridge.js')).headers.get('cache-control'), 'no-store');
+	const Bridge = await Call('/_ztok/bridge.js');
+	assert.equal(Bridge.headers.get('cache-control'), 'no-cache');
+	assert.equal((await Call('/_ztok/bridge.js', 'GET', undefined, { 'if-none-match': Bridge.headers.get('etag') })).status, 304);
 });
 
 test('browser bridge redirects API fetches locally and preserves request bodies and CSRF headers', async () => {
