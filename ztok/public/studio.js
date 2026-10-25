@@ -166,15 +166,60 @@
 	PhotoDrop.addEventListener('dragleave', () => PhotoDrop.classList.remove('drag-over'));
 	PhotoDrop.addEventListener('drop', Event => { Event.preventDefault(); PhotoDrop.classList.remove('drag-over'); if (!Busy) AddPhotos([...Event.dataTransfer.files]); });
 
+	// Sounds: pick a public video's sound to play under your video or photos.
+	const SoundDialog = document.getElementById('sound-dialog'), SoundResults = document.getElementById('sound-results'), SoundSearch = document.getElementById('sound-search'), Listen = document.getElementById('sound-preview');
+	const Chosen = document.getElementById('sound-chosen'), Levels = document.getElementById('sound-levels'), PickSound = document.getElementById('sound-pick');
+	let Sound = null, SearchTimer;
+	const SoundLine = Item => `${Item.uses} post${Item.uses === 1 ? '' : 's'} · ${Math.floor(Item.duration / 60)}:${String(Math.round(Item.duration % 60)).padStart(2, '0')}`;
+	function ShowSound(Item) {
+		Sound = Item; Chosen.hidden = !Item; Levels.hidden = !Item; PickSound.hidden = Boolean(Item);
+		if (Item) {
+			Chosen.querySelector('img').src = Item.cover; Chosen.querySelector('strong').textContent = `${Item.title} - ${Item.author}`; Chosen.querySelector('small').textContent = SoundLine(Item);
+			Form.elements.original_volume.value = 0; Form.elements.sound_volume.value = 100; SyncLevels();
+		}
+		SyncKindLevels();
+	}
+	const SyncLevels = () => { for (const Range of Levels.querySelectorAll('input')) Range.setAttribute('aria-valuetext', `${Range.value}%`); };
+	const SyncKindLevels = () => { for (const Label of Levels.querySelectorAll('[data-video-only]')) Label.hidden = Kind() === 'photos'; };
+	Levels.addEventListener('input', SyncLevels);
+	for (const Radio of Form.querySelectorAll('input[name="kind"]')) Radio.addEventListener('change', SyncKindLevels);
+	async function Search() {
+		const Response = await fetch(`/api/v1/sounds?q=${encodeURIComponent(SoundSearch.value)}`).catch(() => null);
+		const Items = Response?.ok ? (await Response.json()).sounds : [];
+		SoundResults.replaceChildren(...(Items.length ? Items.map(Item => {
+			const Row = document.createElement('li');
+			const Cover = Object.assign(document.createElement('img'), { src: Item.cover, alt: '' });
+			const Text = document.createElement('span');
+			Text.append(Object.assign(document.createElement('strong'), { textContent: `${Item.title} - ${Item.author}` }), Object.assign(document.createElement('small'), { textContent: `@${Item.username} · ${SoundLine(Item)}` }));
+			const Play = Object.assign(document.createElement('button'), { type: 'button', className: 'play', textContent: '▶' }); Play.setAttribute('aria-label', `Play ${Item.title} - ${Item.author}`);
+			Play.addEventListener('click', () => {
+				const Playing = Listen.dataset.id === Item.id && !Listen.paused;
+				for (const Other of SoundResults.querySelectorAll('.play')) Other.textContent = '▶';
+				if (Playing) { Listen.pause(); return; }
+				Listen.src = Item.preview; Listen.dataset.id = Item.id; Listen.play().catch(() => {}); Play.textContent = '❚❚';
+			});
+			const Use = Object.assign(document.createElement('button'), { type: 'button', className: 'small', textContent: 'Use' });
+			Use.addEventListener('click', () => { Listen.pause(); ShowSound(Item); SoundDialog.close(); });
+			Row.append(Cover, Text, Play, Use); return Row;
+		}) : [Object.assign(document.createElement('li'), { className: 'empty-row', textContent: SoundSearch.value ? 'No sounds match that search.' : 'No sounds yet.' })]));
+	}
+	PickSound.addEventListener('click', () => { SoundDialog.showModal(); SoundSearch.focus(); Search(); });
+	SoundDialog.querySelector('.sound-close').addEventListener('click', () => SoundDialog.close());
+	SoundDialog.addEventListener('close', () => Listen.pause());
+	SoundDialog.addEventListener('click', Event => { if (Event.target === SoundDialog) SoundDialog.close(); });
+	SoundSearch.addEventListener('input', () => { clearTimeout(SearchTimer); SearchTimer = setTimeout(Search, 250); });
+	document.getElementById('sound-remove').addEventListener('click', () => ShowSound(null));
+	if (Config.sound) fetch(`/api/v1/sounds?id=${Config.sound}`).then(Response => Response.json()).then(Data => { if (Data.sounds?.[0]) ShowSound(Data.sounds[0]); }).catch(() => {});
+
 	function Reset() {
-		if (PreviewUrl) URL.revokeObjectURL(PreviewUrl); PreviewUrl = null; Selected = null;
+		if (PreviewUrl) URL.revokeObjectURL(PreviewUrl); PreviewUrl = null; Selected = null; ShowSound(null);
 		Preview.removeAttribute('src'); Preview.hidden = true; Zone.hidden = false; Change.hidden = true; Picker.hidden = true; Name.textContent = '';
 		for (const Photo of Photos) URL.revokeObjectURL(Photo.url); Photos.length = 0; Draw();
 		Progress.hidden = true; Progress.value = 0;
 		setTimeout(() => { Form.querySelector('textarea[data-count]').dispatchEvent(new Event('input')); Form.querySelector('input[name="when"]:checked')?.dispatchEvent(new Event('change')); SyncKind(); });
 	}
 	Form.addEventListener('reset', Event => { if (Busy) { Event.preventDefault(); return; } Reset(); Status.textContent = ''; Posted.hidden = true; });
-	const Messages = { VideoTooLarge: 'This video is too large.', UnsupportedVideo: 'This video format or length isn’t supported.', UploadsBusy: 'Lots of uploads right now. Try again in a minute.', ScheduleTooSoon: 'Scheduled posts need to be at least 15 minutes from now.', ScheduleTooLate: 'You can schedule up to 30 days ahead.', TryLater: 'You’ve uploaded a lot this hour. Try again later.', InvalidPhotos: 'Some photos didn’t upload. Remove them and try again.' };
+	const Messages = { VideoTooLarge: 'This video is too large.', UnsupportedVideo: 'This video format or length isn’t supported.', UploadsBusy: 'Lots of uploads right now. Try again in a minute.', ScheduleTooSoon: 'Scheduled posts need to be at least 15 minutes from now.', ScheduleTooLate: 'You can schedule up to 30 days ahead.', TryLater: 'You’ve uploaded a lot this hour. Try again later.', InvalidPhotos: 'Some photos didn’t upload. Remove them and try again.', NoAudio: 'That video has no sound. Pick another one.', SoundNotFound: 'That sound isn’t available anymore.' };
 	function Done(Result, Mode, Story, IsPhotos) {
 		Busy = false; Form.reset();
 		if (Result.draft) {
@@ -202,7 +247,8 @@
 		}
 		const Story = Mode === 'post' && When_ === 'story';
 		Busy = true; const Controls = [...Form.querySelectorAll('button,input,textarea,select')]; Controls.forEach(Control => { Control.disabled = true; });
-		const Fields = { description: Form.elements.description.value, visibility: Form.elements.visibility.value, comments: Form.elements.comments.value, category: Form.elements.category.value, mode: Mode, ...(Mode === 'schedule' ? { publish_at: Iso() } : {}) };
+		const Fields = { description: Form.elements.description.value, visibility: Form.elements.visibility.value, comments: Form.elements.comments.value, category: Form.elements.category.value, mode: Mode, ...(Mode === 'schedule' ? { publish_at: Iso() } : {}),
+			...(Sound ? { sound: Sound.id, sound_volume: Form.elements.sound_volume.value, ...(IsPhotos ? {} : { original_volume: Form.elements.original_volume.value }) } : {}) };
 		const Fail = Error => { Status.textContent = Messages[Error] ?? Error ?? 'Couldn’t upload. Try again.'; };
 		const Unlock = () => { Busy = false; Controls.forEach(Control => { Control.disabled = false; }); };
 		if (IsPhotos) {

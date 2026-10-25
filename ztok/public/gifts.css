@@ -1,0 +1,28 @@
+/* Gift picker, toast and the gift that floats up after sending. */
+.ZtokGiftDialog{width:min(420px,calc(100vw - 24px));padding:0;border:0;border-radius:16px;background:#1e1e1e;color:#fff;box-shadow:0 12px 40px rgba(0,0,0,.5);font-family:inherit}
+.ZtokGiftDialog::backdrop{background:rgba(0,0,0,.55)}
+.ZtokGiftHead{position:relative;display:flex;justify-content:center;padding:16px 48px 4px}.ZtokGiftHead h2{margin:0;font-size:18px;font-weight:700}
+.ZtokGiftClose{position:absolute;right:10px;top:8px;width:36px;height:36px;border:0;border-radius:50%;background:transparent;color:inherit;font-size:26px;cursor:pointer}.ZtokGiftClose:hover{background:rgba(255,255,255,.08)}
+.ZtokGiftTo{margin:0 0 8px;text-align:center;font-size:13px;color:rgba(255,255,255,.6)}
+.ZtokGiftGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:8px 16px}
+.ZtokGiftItem{display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 4px;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(255,255,255,.04);color:inherit;font:inherit;cursor:pointer}
+.ZtokGiftItem:hover{background:rgba(255,255,255,.09)}.ZtokGiftItem[aria-checked="true"]{border-color:#fe2c55;background:rgba(254,44,85,.14)}
+.ZtokGiftItem.Short{opacity:.55}.ZtokGiftEmoji{font-size:34px;line-height:1.15}.ZtokGiftItem strong{font-size:13px;font-weight:600}
+.ZtokGiftItem small{font-size:12px;color:rgba(255,255,255,.65)}.ZtokGiftItem small::before{content:"";display:inline-block;width:10px;height:10px;margin-right:4px;border-radius:50%;background:#f5b301;vertical-align:-1px}
+.ZtokGiftNote{display:flex;flex-direction:column;gap:6px;padding:8px 16px 0;font-size:13px;font-weight:600}.ZtokGiftNote small{font-weight:400;opacity:.6}
+.ZtokGiftNote input{padding:10px 12px;border:1px solid rgba(255,255,255,.15);border-radius:8px;background:#121212;color:inherit;font:inherit;font-size:14px}
+.ZtokGiftFoot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px 6px}
+.ZtokGiftBalance{display:flex;align-items:center;gap:6px;color:inherit;text-decoration:none;font-size:14px}.ZtokGiftBalance strong{font-variant-numeric:tabular-nums}
+.ZtokGiftGet{margin-left:6px;color:#ff5c7c;font-weight:600}
+.ZtokCoin{width:18px;height:18px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ffe58a,#f5b301 55%,#c98500)}
+.ZtokGiftSend{height:40px;padding:0 20px;border:0;border-radius:8px;background:#fe2c55;color:#fff;font:inherit;font-weight:600;cursor:pointer}.ZtokGiftSend:disabled{opacity:.45;cursor:default}
+.ZtokGiftStatus{min-height:18px;margin:0;padding:0 16px 14px;font-size:13px;color:rgba(255,255,255,.75)}
+.ZtokGiftDialog :focus-visible{outline:2px solid #25f4ee;outline-offset:2px}
+.ZtokGiftToast{position:fixed;left:50%;bottom:32px;z-index:2147483000;transform:translateX(-50%);padding:12px 18px;border-radius:10px;background:rgba(30,30,30,.95);color:#fff;font-size:15px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+.ZtokGiftBurst{position:fixed;left:50%;top:55%;z-index:2147483000;font-size:120px;pointer-events:none;animation:ZtokGiftRise 1.8s cubic-bezier(.2,.7,.3,1) forwards}
+@keyframes ZtokGiftRise{0%{transform:translate(-50%,0) scale(.4);opacity:0}20%{transform:translate(-50%,-10vh) scale(1.15);opacity:1}70%{opacity:1}100%{transform:translate(-50%,-45vh) scale(.9);opacity:0}}
+@media (max-width:760px){.ZtokGiftDialog{margin:auto auto 0;width:100%;max-width:100%;border-radius:16px 16px 0 0}}
+
+/* "Use sound" on sound pages */
+.ZtokUseSound{display:inline-flex;align-items:center;gap:8px;height:40px;margin-top:12px;padding:0 20px;border-radius:8px;background:#fe2c55;color:#fff!important;font-weight:600;font-size:15px;text-decoration:none}
+.ZtokUseSound:hover{filter:brightness(1.08)}.ZtokUseSound:focus-visible{outline:2px solid #25f4ee;outline-offset:2px}

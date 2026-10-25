@@ -7,10 +7,10 @@
 		if (Button) Trigger = Button;
 	}, true);
 	const VideoId = Panel => {
-		const Detail = /\/video\/(\d+)/.exec(location.pathname)?.[1];
+		const Detail = /\/(?:video|photo)\/(\d+)/.exec(location.pathname)?.[1];
 		const Scope = Panel.closest('article, [data-e2e="recommend-list-item-container"]') ?? Trigger?.closest('article, [data-e2e="recommend-list-item-container"], [data-e2e="detail-video"], main');
 		const Player = Scope?.querySelector('[id^="xgwrapper-"]')?.id.split('-').at(-1);
-		const Link = /\/video\/(\d+)/.exec(Scope?.querySelector('a[href*="/video/"]')?.getAttribute('href') ?? '')?.[1];
+		const Link = /\/(?:video|photo)\/(\d+)/.exec(Scope?.querySelector('a[href*="/video/"], a[href*="/photo/"]')?.getAttribute('href') ?? '')?.[1];
 		return [Detail, Player, Link].find(Value => /^\d+$/.test(Value ?? ''));
 	};
 	async function Downloadable(Panel) {
