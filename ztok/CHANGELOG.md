@@ -2,6 +2,7 @@
 
 ## 0.1.0
 
+- Photo posts: post up to 35 photos from Studio → Upload → Photos (reorder by dragging or with the arrows). They show in TikTok's own photo carousel with dots and arrows in the feed, on profiles and on the post page (`/@user/photo/…`), and as posts, stories, drafts or scheduled posts. Each also gets a slideshow video so downloads and everything else that plays videos keeps working.
 - ztok Studio at `/tiktokstudio` (Studio in the sidebar): Home with key metrics, Posts with search, filters, editing, cover frames and deleting, Analytics (overview, top posts, followers, and per-post charts by day over 7, 28, 60 or 365 days), a Comments manager to reply, like and delete across all your posts, and Upload with drafts and scheduled posts (15 minutes to 30 days ahead). Views, profile views and unfollows are now counted per day.
 - Switch account: keep up to 5 accounts signed in on one browser and swap between them from the ▾ next to your name, or pick one on the login page.
 - Banned accounts show TikTok's account-unavailable page reworded to say the account was banned; missing accounts show "Couldn't find this account".
