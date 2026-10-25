@@ -465,6 +465,38 @@ test('profile banners are re-encoded to 16:9, shown through the badges lookup, a
 	assert.ok((await Pool.query("SELECT 1 FROM user_events WHERE user_id = $1 AND kind = 'profile_change' AND detail = 'Removed banner'", [Owner.id])).rowCount);
 });
 
+test('banned and missing accounts answer with TikTok status codes and are listed as banned', async () => {
+	const Banned = await CreateUser(Pool, { username: 'banned_kitten', displayName: 'Banned Kitten', password: Password }, 'closed', true);
+	await Pool.query('UPDATE users SET suspended_at = now() WHERE id = $1', [Banned.id]);
+	assert.equal((await (await Call('/api/user/detail/?uniqueId=banned_kitten')).json()).statusCode, 10221);
+	assert.equal((await (await Call('/api/user/detail/?uniqueId=nobody_kitten')).json()).statusCode, 10202);
+	const Lookup = await (await Call('/_ztok/badges?users=banned_kitten,owner')).json();
+	assert.deepEqual(Lookup.banned, ['banned_kitten']);
+	assert.ok(!('banned_kitten' in Lookup.users));
+	assert.equal((await (await Call('/api/user/detail/?uniqueId=owner')).json()).statusCode, 0);
+});
+
+test('switch account keeps the other accounts signed in on this browser and swaps between them', async () => {
+	await CreateUser(Pool, { username: 'switch_kitten', displayName: 'Switch Kitten', password: Password }, 'closed', true);
+	const Jar = { ztok_session: '', ztok_accounts: '' };
+	const Cookie = () => Object.entries(Jar).filter(([, Value]) => Value).map(([Name, Value]) => `${Name}=${Value}`).join('; ');
+	const Keep = Response => { for (const Line of Response.headers.getSetCookie()) { const [Name, Value] = Line.split(';')[0].split('='); if (Name in Jar) Jar[Name] = Value; } return Response; };
+	const Accounts = async () => (await Keep(await Call('/api/v1/accounts', 'GET', undefined, { cookie: Cookie() })).json()).accounts.map(Account => [Account.username, Account.current]);
+	const SignIn = async Username => { const Signed = await Login(Pool, Username, Password); Jar.ztok_session = Signed.Token; return Signed.Csrf; };
+	const First = await SignIn('owner');
+	assert.deepEqual(await Accounts(), [['owner', true]]);
+	assert.equal(Keep(await Call('/api/v1/accounts/add', 'POST', {}, { cookie: Cookie(), 'x-csrf-token': First })).status, 200);
+	assert.equal(Jar.ztok_session, '');
+	assert.deepEqual(await Accounts(), [['owner', false]]);
+	const Second = await SignIn('switch_kitten');
+	assert.deepEqual(await Accounts(), [['switch_kitten', true], ['owner', false]]);
+	assert.equal((await Call('/api/v1/accounts/switch', 'POST', { username: 'owner' }, { cookie: Cookie() })).status, 403);
+	assert.equal((await Call('/api/v1/accounts/switch', 'POST', { username: 'nobody' }, { cookie: Cookie(), 'x-csrf-token': Second })).status, 404);
+	assert.equal(Keep(await Call('/api/v1/accounts/switch', 'POST', { username: 'owner' }, { cookie: Cookie(), 'x-csrf-token': Second })).status, 200);
+	assert.equal((await (await Call('/api/v1/session', 'GET', undefined, { cookie: Cookie() })).json()).user.uniqueId, 'owner');
+	assert.deepEqual(await Accounts(), [['owner', true], ['switch_kitten', false]]);
+});
+
 test('original client username checks and changes enforce local username rules', async () => {
 	const Kitten = await Login(Pool, 'newkitten', Password);
 	const AsKitten = { cookie: `ztok_session=${Kitten.Token}`, 'x-csrf-token': Kitten.Csrf };
@@ -478,7 +510,7 @@ test('original client username checks and changes enforce local username rules',
 	const Renamed = await (await Rename('Fresh_Name')).json();
 	assert.equal(Renamed.message, 'success'); assert.equal(Renamed.data.username, 'fresh_name');
 	assert.equal((await (await Call('/api/user/detail/?uniqueId=fresh_name')).json()).userInfo.user.uniqueId, 'fresh_name');
-	assert.equal((await Call('/api/user/detail/?uniqueId=newkitten')).status, 404);
+	assert.equal((await (await Call('/api/user/detail/?uniqueId=newkitten')).json()).statusCode, 10202);
 	assert.equal((await (await Call('/api/v1/session', 'GET', undefined, { cookie: AsKitten.cookie })).json()).user.uniqueId, 'fresh_name');
 });
 
@@ -1987,7 +2019,7 @@ test('deactivating hides an account until its owner logs back in, and deletion r
 	const Done = await Deactivate({ password: Password });
 	assert.equal(Done.status, 200); assert.equal((await Done.json()).deleteAfter, null);
 	assert.equal((await Pool.query('SELECT count(*)::int AS live FROM sessions WHERE user_id = $1', [Leaver.id])).rows[0].live, 0);
-	assert.equal((await Call('/api/user/detail/?uniqueId=leaver')).status, 404);
+	assert.equal((await (await Call('/api/user/detail/?uniqueId=leaver')).json()).statusCode, 10202);
 	assert.ok(!(await (await Call('/api/search/user/full/?keyword=leaver')).json()).user_list.length);
 	assert.equal((await fetch(`${Origin}/logout`, { redirect: 'manual' })).headers.get('location'), '/');
 	const Back = await Login(Pool, 'leaver', Password);
