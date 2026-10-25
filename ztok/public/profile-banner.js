@@ -1,5 +1,6 @@
 // Profile banners: a wide background image behind the profile header (avatar, name, stats, bio),
 // like the banner TikTok has been rolling out. Set from Edit profile → Banner.
+// Also labels banned accounts: the client shows its own "Couldn't find this account" page for them, reworded here.
 (() => {
 	const Instance = JSON.parse(document.getElementById('ztok-instance')?.textContent ?? '{}');
 	const Handle = Value => /^\/@([a-z0-9_]{3,24})\/?$/i.exec(Value)?.[1].toLowerCase();
@@ -7,7 +8,7 @@
 	let Timer;
 
 	const Lookup = Username => {
-		if (!Cache.has(Username)) Cache.set(Username, fetch(`/_ztok/badges?users=${encodeURIComponent(Username)}`).then(Response => Response.ok ? Response.json() : {}).then(Data => Data.banners?.[Username] ?? null).catch(() => { Cache.delete(Username); return null; }));
+		if (!Cache.has(Username)) Cache.set(Username, fetch(`/_ztok/badges?users=${encodeURIComponent(Username)}`).then(Response => Response.ok ? Response.json() : {}).then(Data => ({ banner: Data.banners?.[Username] ?? null, banned: Boolean(Data.banned?.includes(Username)) })).catch(() => { Cache.delete(Username); return { banner: null, banned: false }; }));
 		return Cache.get(Username);
 	};
 
@@ -37,14 +38,24 @@
 		Probe.src = Url;
 	}
 
+	function Banned(Error) {
+		if (Error.dataset.ztokBanned) return;
+		Error.dataset.ztokBanned = '';
+		const Title = Error.querySelector('[class*="--PTitle"]'), Description = Error.querySelector('[class*="--PDesc"]');
+		if (Title) Title.textContent = 'Account banned';
+		if (Description) Description.textContent = `This account was banned for violating ${Instance.name ?? 'ztok'}’s Community Guidelines.`;
+	}
+
 	async function Profile() {
 		const Username = Handle(location.pathname);
 		if (!Username) return Clear();
-		const Target = Host();
-		if (!Target) return;
-		const Url = await Lookup(Username);
-		if (Handle(location.pathname) !== Username || !Target.isConnected) return;
-		Paint(Target, Url);
+		const Error = document.querySelector('[class*="--MainDetailWrapper"] [class*="--DivErrorContainer"]');
+		const Target = Error ? null : Host();
+		if (!Target && !Error) return;
+		const Found = await Lookup(Username);
+		if (Handle(location.pathname) !== Username) return;
+		if (Error) { if (Found.banned && Error.isConnected) Banned(Error); return; }
+		if (Target.isConnected) Paint(Target, Found.banner);
 	}
 
 	// Edit profile → Banner row
@@ -83,10 +94,10 @@
 			Change.textContent = Url ? 'Change background' : 'Add background';
 		};
 		const Busy = On => { Change.disabled = Remove.disabled = On; Row.classList.toggle('Busy', On); };
-		const Apply = Url => { Show(Url); const Me = Instance.account?.username; if (Me) { Cache.set(Me, Promise.resolve(Url)); for (const Host_ of document.querySelectorAll('[data-ztok-banner]')) delete Host_.dataset.ztokBanner; Schedule(); } };
+		const Apply = Url => { Show(Url); const Me = Instance.account?.username; if (Me) { Cache.set(Me, Promise.resolve({ banner: Url, banned: false })); for (const Host_ of document.querySelectorAll('[data-ztok-banner]')) delete Host_.dataset.ztokBanner; Schedule(); } };
 		Show(null);
 		const Me = Instance.account?.username;
-		if (Me) Lookup(Me).then(Url => { if (Row.isConnected && !Row.classList.contains('Busy')) Show(Url); });
+		if (Me) Lookup(Me).then(Found => { if (Row.isConnected && !Row.classList.contains('Busy')) Show(Found.banner); });
 
 		Change.addEventListener('click', () => Input.click());
 		Input.addEventListener('change', async () => {
