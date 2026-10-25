@@ -40,6 +40,7 @@ const Icons = {
 	comments: '<path d="M5 5h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-7l-4 3v-3H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>',
 	privacy: '<rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
 	sound: '<path d="M9 18V6l11-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/>',
+	live: '<rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10.5l5-3v9l-5-3"/>',
 	coins: '<circle cx="12" cy="12" r="8"/><path d="M12 8v8M9.5 10.5c0-1 1-1.5 2.5-1.5s2.5.6 2.5 1.5-1 1.3-2.5 1.5-2.5.6-2.5 1.5 1 1.5 2.5 1.5 2.5-.5 2.5-1.5"/>',
 	requests: '<circle cx="10" cy="8" r="4"/><path d="M3 20a7 7 0 0 1 14 0M19 8v6M16 11h6"/>',
 	back: '<path d="M15 5l-7 7 7 7"/>',
@@ -321,6 +322,27 @@ async function Handle(Context, Path) {
 		<script id="upload-config" type="application/json">${JSON.stringify({ csrf: User.csrf_token, maxBytes: Config.MaxVideoBytes, maxSeconds: Config.MaxVideoSeconds, username: User.username, sound: /^\d{1,19}$/.test(Url.searchParams.get('sound') ?? '') ? Url.searchParams.get('sound') : null }).replaceAll('<', '\\u003c')}</script>`;
 	}
 
+	else if (Path === 'live') {
+		Section = 'live'; Title = 'LIVE';
+		const Past = (await Pool.query(`SELECT id, title, started_at, ended_at, peak_viewers, viewers, likes, extract(epoch FROM ended_at - started_at)::int AS seconds,
+			(SELECT coalesce(sum(coins), 0)::int FROM gifts g WHERE g.live_id = l.id) AS gift_coins FROM lives l WHERE host_id = $1 AND ended_at IS NOT NULL ORDER BY id DESC LIMIT 10`, [User.id])).rows;
+		Content = `<header class="page-head"><div><h1>LIVE</h1><p class="muted">Go LIVE from your camera or share your screen. Nothing is recorded.</p></div><a href="/live">Watch LIVE</a></header>
+		<div class="editor go-live" id="go-live">
+			<section class="card editor-media"><div class="live-preview"><video id="live-preview" playsinline autoplay muted></video><span class="live-badge" id="live-badge" hidden>LIVE</span><span class="live-clock" id="live-clock" hidden>0:00</span>
+				<p class="live-off" id="live-off">Your camera preview shows here</p></div>
+				<div class="segmented kind" role="radiogroup" aria-label="Source"><label><input type="radio" name="source" value="camera" checked> Camera</label><label><input type="radio" name="source" value="screen"> Screen</label></div>
+				<label class="check"><input type="checkbox" id="live-mic" checked> Microphone</label><button type="button" class="secondary" id="live-flip" hidden>Switch camera</button></section>
+			<section class="card editor-details"><div id="live-setup"><label class="field">Title<input id="live-title" maxlength="100" placeholder="What’s your LIVE about?"></label>
+					<p class="field-help">Everyone who can see your posts can watch${User.private_account ? ' (your account is private, so only approved followers)' : ''}. Viewers can comment, like and send gifts.</p>
+					<div class="form-actions"><button type="button" id="live-start">${Icon('live')} Go LIVE</button></div></div>
+				<div id="live-on" hidden><div class="tiles compact"><div class="tile"><span class="tile-label">Viewers</span><strong id="live-viewers">0</strong></div><div class="tile"><span class="tile-label">Likes</span><strong id="live-likes">0</strong></div><div class="tile"><span class="tile-label">Gift coins</span><strong id="live-gifts">0</strong></div></div>
+					<div class="live-chat" id="live-chat" role="log" aria-label="LIVE chat"></div><form class="live-say" id="live-say"><input id="live-say-text" maxlength="150" placeholder="Say something to viewers" aria-label="Comment"><button>Send</button></form>
+					<div class="form-actions"><a class="button secondary" id="live-watch" target="_blank" rel="noopener">Open viewer page</a><button type="button" class="danger" id="live-end">End LIVE</button></div></div>
+				<div id="live-done" hidden></div><p id="live-status" class="field-help" role="status"></p></section></div>
+		${Past.length ? `<section class="card"><div class="card-head"><h2>Past LIVEs</h2></div><table class="posts"><thead><tr><th scope="col">LIVE</th><th scope="col">Length</th><th scope="col" class="num">Viewers</th><th scope="col" class="num">Peak</th><th scope="col" class="num">Likes</th><th scope="col" class="num">Gift coins</th></tr></thead><tbody>${Past.map(Row => `<tr><td>${Escape(Row.title || 'LIVE')}<br><small class="muted">${When(Row.started_at)}</small></td><td data-label="Length">${Clock(Row.seconds)}</td><td data-label="Viewers" class="num">${Number_(Row.viewers)}</td><td data-label="Peak" class="num">${Number_(Row.peak_viewers)}</td><td data-label="Likes" class="num">${Number_(Row.likes)}</td><td data-label="Gift coins" class="num">${Number_(Row.gift_coins)}</td></tr>`).join('')}</tbody></table></section>` : ''}
+		<script id="live-config" type="application/json">${JSON.stringify({ csrf: User.csrf_token, username: User.username }).replaceAll('<', '\\u003c')}</script><script src="${Public('live-host.js')}" defer></script>`;
+	}
+
 	else if (Path === 'coins') {
 		Section = 'coins'; Title = 'Coins & gifts';
 		if (Request.method === 'POST') {
@@ -376,7 +398,7 @@ async function Handle(Context, Path) {
 
 	else throw new HttpError(404, 'NotFound');
 
-	const Nav = [['home', '/tiktokstudio', 'Home'], ['content', '/tiktokstudio/content', 'Posts'], ['analytics', '/tiktokstudio/analytics', 'Analytics'], ['comments', '/tiktokstudio/comments', 'Comments'], ['coins', '/coin', 'Coins & gifts']];
+	const Nav = [['home', '/tiktokstudio', 'Home'], ['content', '/tiktokstudio/content', 'Posts'], ['analytics', '/tiktokstudio/analytics', 'Analytics'], ['comments', '/tiktokstudio/comments', 'Comments'], ['live', '/tiktokstudio/live', 'LIVE'], ['coins', '/coin', 'Coins & gifts']];
 	const Settings = [['privacy', '/account/privacy', 'Privacy'], ['requests', '/account/requests', 'Follow requests']];
 	const Link = ([Key, Href, Label]) => `<a href="${Href}"${Key === Section ? ' aria-current="page"' : ''}>${Icon(Key)}<span>${Label}</span></a>`;
 	Response.setHeader('content-type', 'text/html; charset=utf-8');
@@ -391,7 +413,7 @@ async function Handle(Context, Path) {
 
 const Routes = [
 	[/^\/tiktokstudio\/?$/, 'home'], [/^\/(?:tiktokstudio\/)?upload\/?$/, 'upload'], [/^\/tiktokstudio\/content\/?$/, 'content'], [/^\/tiktokstudio\/analytics\/?$/, 'analytics'],
-	[/^\/tiktokstudio\/comments\/?$/, 'comments'], [/^\/(?:coin|tiktokstudio\/coins)\/?$/, 'coins'], [/^\/account\/privacy$/, 'privacy'], [/^\/account\/requests$/, 'requests'],
+	[/^\/tiktokstudio\/comments\/?$/, 'comments'], [/^\/(?:coin|tiktokstudio\/coins)\/?$/, 'coins'], [/^\/tiktokstudio\/live\/?$/, 'live'], [/^\/account\/privacy$/, 'privacy'], [/^\/account\/requests$/, 'requests'],
 	[/^\/(?:tiktokstudio\/content|account\/posts)\/(\d+)$/, Match => `content/${Match[1]}`], [/^\/tiktokstudio\/drafts\/(\d+)$/, Match => `drafts/${Match[1]}`], [/^\/tiktokstudio\/analytics\/(\d+)$/, Match => `analytics/${Match[1]}`],
 ];
 
