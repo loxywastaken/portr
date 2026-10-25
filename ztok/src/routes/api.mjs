@@ -11,6 +11,7 @@ import { SetIpConsent } from '../ips.mjs';
 import { Misc } from '../settings.mjs';
 import { Category } from '../categories.mjs';
 import { UnsendMessage } from './im.mjs';
+import { ScheduleTime } from '../studio.mjs';
 
 export async function Api(Context) {
 	const { Request, Response, Url, Pool, Config, User, Limiter } = Context;
@@ -205,13 +206,18 @@ export async function Api(Context) {
 		if (!Request.headers['content-type']?.startsWith('video/')) throw new HttpError(415, 'ExpectedVideoBody');
 		if (Number(Request.headers['content-length']) > Config.MaxVideoBytes) throw new HttpError(413, 'VideoTooLarge');
 		if (Context.Uploading.value >= 2) throw new HttpError(503, 'UploadsBusy');
-		const Settings = { ...PostSettings(Url.searchParams.get('visibility') ?? 'public', Url.searchParams.get('comments') ?? 'default'), category: Category(Url.searchParams.get('category')), story: Url.searchParams.get('story') === '1' };
+		const Settings = { ...PostSettings(Url.searchParams.get('visibility') ?? 'public', Url.searchParams.get('comments') ?? 'default'), category: Category(Url.searchParams.get('category')), story: Url.searchParams.get('story') === '1', coverTime: Number(Url.searchParams.get('cover_time')) || 0 };
+		// Studio: save as a draft, or schedule (publish_at, 15 minutes to 30 days ahead) instead of posting now.
+		const Mode = Url.searchParams.get('mode') ?? 'post';
+		if (!['post', 'draft', 'schedule'].includes(Mode) || (Mode !== 'post' && Settings.story)) throw new HttpError(400, 'InvalidPostMode');
+		if (Mode !== 'post') Settings.draft = true;
+		if (Mode === 'schedule') Settings.publishAt = ScheduleTime(Url.searchParams.get('publish_at'));
 		Context.Uploading.value++;
 		let File;
 		try {
 			File = await ReceiveVideo(Request, Config);
-			const VideoId = await ImportVideo(Pool, Config, User.id, File, Url.searchParams.get('description') ?? '', Settings);
-			Json(Response, { id: VideoId }, 201);
+			const Created = await ImportVideo(Pool, Config, User.id, File, Url.searchParams.get('description') ?? '', Settings);
+			Json(Response, Created?.draft ? { draft: Created.draft, scheduled: Boolean(Settings.publishAt) } : { id: Created }, 201);
 			WarmDownloads(Pool, Config).catch(() => {});
 		} finally { Context.Uploading.value--; if (File) await rm(File, { force: true }); }
 		return true;

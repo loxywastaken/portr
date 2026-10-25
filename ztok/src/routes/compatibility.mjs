@@ -10,7 +10,7 @@ import { AssertVideoVisible, VideoVisibleSql, SetPrivateAccount, DecideFollowReq
 import { PublicBadges } from '../badges.mjs';
 import { Categories } from '../categories.mjs';
 import { Misc } from '../settings.mjs';
-import { FindUser, StoryStatus, UserShape, UserStats, Videos, SetRelation, TagId, TagName, TagSql, MentionedUsers, CommentExtra, Relation, AddComment, FollowList, AvatarUrl, Activity, UnreadActivity, MarkActivityRead, RelationSql, RecordView, SetBlock, BlockList, BlockedBetween, DmAudiences, DmSettings, SetDmSetting } from '../store.mjs';
+import { FindUser, StoryStatus, UserShape, UserStats, Videos, SetRelation, TagId, TagName, TagSql, MentionedUsers, CommentExtra, Relation, AddComment, FollowList, AvatarUrl, Activity, UnreadActivity, MarkActivityRead, RelationSql, RecordView, RecordProfileView, SetBlock, BlockList, BlockedBetween, DmAudiences, DmSettings, SetDmSetting } from '../store.mjs';
 
 const ViewSecret = randomBytes(32);
 // Logged-out views are de-duplicated in memory only, so no IP (or IP hash) is ever written to the database.
@@ -230,6 +230,10 @@ export async function Compatibility(Context) {
 		const Target = await FindUser(Pool, Params.get('uniqueId') || Params.get('secUid') || User?.id, !Params.get('uniqueId')).catch(Failure => { if (Failure.status === 404) return null; throw Failure; });
 		if (!Target) { Json(Response, { statusCode: 10202, status_code: 10202, statusMsg: 'UserNotExist', userInfo: {} }); return true; }
 		if ((await Pool.query('SELECT 1 FROM users WHERE id = $1 AND suspended_at IS NOT NULL', [Target.id])).rowCount) { Json(Response, { statusCode: 10221, status_code: 10221, statusMsg: 'UserBan', userInfo: {} }); return true; }
+		if (Params.get('uniqueId') && Target.id !== User?.id) {
+			const Viewer = User ? `u:${User.id}` : FirstAnonymousView(Request.socket.remoteAddress, `profile:${Target.id}`) ? `anon:${randomBytes(16).toString('hex')}` : null;
+			if (Viewer) RecordProfileView(Pool, Target.id, Viewer).catch(() => {});
+		}
 		Json(Response, { statusCode: 0, userInfo: { user: UserShape({ ...Target, relation: await Relation(Pool, User?.id, Target.id), story_status: await StoryStatus(Pool, User?.id, Target.id) }, Config.Origin), stats: await UserStats(Pool, Target.id) } }); return true;
 	}
 	if (Path === '/api/user/list/') {
