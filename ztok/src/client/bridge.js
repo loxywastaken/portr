@@ -32,28 +32,35 @@
 		return ShopPromo || 'TikTok Shop is now available on web';
 	}
 	const AdminIcon = '<svg fill="currentColor" viewBox="0 0 48 48" width="1em" height="1em" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M24 3 7 9.5V22c0 11 7.2 20.3 17 23 9.8-2.7 17-12 17-23V9.5L24 3Zm0 4.3 13 5v9.7c0 8.9-5.6 16.6-13 19.1-7.4-2.5-13-10.2-13-19.1v-9.7l13-5Zm7.3 9.3a1 1 0 0 1 1.4 0l1.4 1.4a1 1 0 0 1 0 1.4L22.4 31.1a1 1 0 0 1-1.4 0l-6.1-6.1a1 1 0 0 1 0-1.4l1.4-1.4a1 1 0 0 1 1.4 0l5 5 8.6-10.6Z"/></svg>';
+	const StudioIcon = '<svg fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" viewBox="0 0 48 48" width="1em" height="1em" xmlns="http://www.w3.org/2000/svg"><path d="M10 40V24M24 40V9M38 40V18"/></svg>';
 	let UploadSlot;
-	const UploadWatch = new MutationObserver(() => SyncAdmin());
-	function SyncAdmin() {
+	const UploadWatch = new MutationObserver(() => SyncNav());
+	// Sidebar entries ztok adds under Upload: Studio for everyone signed in, Admin for admins.
+	function SyncNav() {
 		const Upload = document.querySelector('a[data-e2e="nav-upload"]');
-		const Existing = document.querySelector('[data-e2e="nav-ztok-admin"]')?.closest('[data-ztok-admin]');
-		if (!Upload) { Existing?.remove(); return; }
+		const Existing = [...document.querySelectorAll('[data-ztok-nav]')];
+		if (!Upload) { Existing.forEach(Item => Item.remove()); return; }
+		const Wanted = [Instance.account && ['studio', '/tiktokstudio', 'Studio', StudioIcon], Instance.account?.role === 'admin' && ['admin', '/admin', 'Admin', AdminIcon]].filter(Boolean);
 		const Slot = Upload.parentElement.parentElement;
 		if (Slot !== UploadSlot) { UploadSlot = Slot; UploadWatch.disconnect(); UploadWatch.observe(Slot, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style'] }); }
 		let Signature = 0;
 		for (const Char of Slot.outerHTML.replace(/ aria-describedby="[^"]*"/g, '')) Signature = (Signature * 31 + Char.charCodeAt(0)) | 0;
 		Signature = String(Signature);
-		if (Existing?.dataset.ztokAdmin === Signature && Existing.previousElementSibling === Slot) return;
-		Existing?.remove();
-		const Item = Slot.cloneNode(true);
-		Item.dataset.ztokAdmin = Signature;
-		const Link = Item.querySelector('a');
-		Link.href = '/admin'; Link.setAttribute('data-e2e', 'nav-ztok-admin');
-		Item.querySelector('button')?.setAttribute('aria-label', 'Admin');
-		const Label = Item.querySelector('.TUXButton-label'); if (Label) Label.textContent = 'Admin';
-		const Icon = Item.querySelector('svg');
-		if (Icon) Icon.outerHTML = AdminIcon;
-		Slot.after(Item);
+		let After = Slot;
+		if (Existing.length === Wanted.length && Existing.every((Item, Index) => { const Ok = Item.dataset.ztokSig === Signature && Item.dataset.ztokNav === Wanted[Index][0] && Item.previousElementSibling === After; After = Item; return Ok; })) return;
+		Existing.forEach(Item => Item.remove());
+		After = Slot;
+		for (const [Key, Href, Label_, Svg] of Wanted) {
+			const Item = Slot.cloneNode(true);
+			Item.dataset.ztokNav = Key; Item.dataset.ztokSig = Signature; if (Key === 'admin') Item.dataset.ztokAdmin = Signature;
+			const Link = Item.querySelector('a');
+			Link.href = Href; Link.setAttribute('data-e2e', `nav-ztok-${Key}`);
+			Item.querySelector('button')?.setAttribute('aria-label', Label_);
+			const Label = Item.querySelector('.TUXButton-label'); if (Label) Label.textContent = Label_;
+			const Icon = Item.querySelector('svg');
+			if (Icon) Icon.outerHTML = Svg;
+			After.after(Item); After = Item;
+		}
 	}
 	const LogoSize = new ResizeObserver(Entries => {
 		for (const Entry of Entries) Entry.target.toggleAttribute('data-ztok-compact', Entry.contentRect.width > 0 && Entry.contentRect.width < 80);
@@ -99,7 +106,7 @@
 			const Source = new URL(Frame.src);
 			Frame.src = location.origin + (Source.pathname.startsWith('/tpp/inapp/') ? Source.pathname : '/tpp/inapp' + Source.pathname) + Source.search;
 		}
-		if (Instance.account?.role === 'admin') SyncAdmin();
+		if (Instance.account) SyncNav();
 		for (const Logo of document.querySelectorAll('a[data-e2e="tiktok-logo"]:not([data-ztok-sized])')) { Logo.setAttribute('data-ztok-sized', ''); LogoSize.observe(Logo); }
 		for (const Item of document.querySelectorAll('[data-e2e="notice-list-item"]')) {
 			if (Item.querySelector('[data-e2e="notice-main"]')?.textContent.includes(ShopPromoText())) Item.remove();
