@@ -2,8 +2,8 @@ import { AssertVideoVisible, PostSettings, SetPrivateAccount } from '../privacy.
 import { rm } from 'node:fs/promises';
 import { HttpError, Id, Json, ReadBody, ReadRaw, RequireMethod } from '../http.mjs';
 import { CreateUser, Login, RequireCsrf, SessionCookie, ClientInfo, RecordEvent, AccountsCookie, CookieValue, DeviceAccounts, DeviceTokens } from '../auth.mjs';
-import { AvatarUrl, UserShape, UserStats, FindUser, Videos, SetRelation, AddComment, SetBlock } from '../store.mjs';
-import { DownloadCopy, ImportVideo, InsertPost, PhotoSlideshow, SavePhoto, ReceiveVideo, RemoveMedia, SaveBanner, ServeMedia, WarmDownloads } from '../media.mjs';
+import { AvatarUrl, FindSounds, UserShape, UserStats, FindUser, Videos, SetRelation, AddComment, SetBlock } from '../store.mjs';
+import { DownloadCopy, EnsureSound, ImportVideo, InsertPost, PhotoSlideshow, SavePhoto, ReceiveVideo, RemoveMedia, SaveBanner, ServeMedia, WarmDownloads } from '../media.mjs';
 import { AssertAllowed, RemovedSql } from '../moderation.mjs';
 import { BadgeCatalog, BadgeSvg, PrideFlag, PublicBadges } from '../badges.mjs';
 import { AvatarDecoration, DecorationCatalog, DecorationImage, Nameplate, NameplateCatalog, NameplateFile, NameStyle, PublicDecoration, PublicNameplate, PublicNameStyle } from '../decorations.mjs';
@@ -12,6 +12,7 @@ import { Misc } from '../settings.mjs';
 import { Category } from '../categories.mjs';
 import { UnsendMessage } from './im.mjs';
 import { ScheduleTime } from '../studio.mjs';
+import { Claim, GiftCatalog, SendGift, Wallet } from '../coins.mjs';
 
 export async function Api(Context) {
 	const { Request, Response, Url, Pool, Config, User, Limiter } = Context;
@@ -212,6 +213,7 @@ export async function Api(Context) {
 		if (!['post', 'draft', 'schedule'].includes(Mode) || (Mode !== 'post' && Settings.story)) throw new HttpError(400, 'InvalidPostMode');
 		if (Mode !== 'post') Settings.draft = true;
 		if (Mode === 'schedule') Settings.publishAt = ScheduleTime(Url.searchParams.get('publish_at'));
+		if (Url.searchParams.get('sound')) Object.assign(Settings, { sound: await EnsureSound(Pool, Config, Id(Url.searchParams.get('sound')), User.id), soundVolume: Number(Url.searchParams.get('sound_volume') ?? 100), originalVolume: Number(Url.searchParams.get('original_volume') ?? 0) });
 		Context.Uploading.value++;
 		let File;
 		try {
@@ -221,6 +223,27 @@ export async function Api(Context) {
 			WarmDownloads(Pool, Config).catch(() => {});
 		} finally { Context.Uploading.value--; if (File) await rm(File, { force: true }); }
 		return true;
+	}
+	// Sounds people can use when posting: public videos' audio, most used first.
+	if (Path === '/api/v1/sounds') {
+		RequireMethod(Request, ['GET']);
+		Json(Response, { sounds: await FindSounds(Pool, Config.Origin, User?.id, Url.searchParams.get('q') ?? '', Url.searchParams.get('id')) }); return true;
+	}
+	// Free coins and gifts (no purchases, no cash-out).
+	if (Path === '/api/v1/coins') {
+		RequireMethod(Request, ['GET']);
+		if (!User) { Json(Response, { balance: 0, claimable: false, catalog: GiftCatalog, loggedIn: false }); return true; }
+		Json(Response, await Wallet(Pool, User.id)); return true;
+	}
+	if (Path === '/api/v1/coins/claim') {
+		RequireMethod(Request, ['POST']); RequireCsrf(Request, User);
+		Json(Response, await Claim(Pool, User.id)); return true;
+	}
+	if (Path === '/api/v1/gifts') {
+		RequireMethod(Request, ['POST']); RequireCsrf(Request, User);
+		Limiter.Hit(`gift:${User.id}`, 60);
+		const Body = await ReadBody(Request);
+		Json(Response, await SendGift(Pool, User, { video: Body.video, gift: Body.gift, message: Body.message }), 201); return true;
 	}
 	// Photo posts: photos are uploaded one at a time (stage), then posted together in order.
 	if (Path === '/api/v1/photos/stage') {
@@ -253,7 +276,8 @@ export async function Api(Context) {
 		if (Context.Uploading.value >= 2) throw new HttpError(503, 'UploadsBusy');
 		Context.Uploading.value++;
 		try {
-			const Show = await PhotoSlideshow(Config, Names.map(Name => Staged.get(Name)));
+			const Sound = Body.sound ? await EnsureSound(Pool, Config, Id(Body.sound), User.id) : null;
+			const Show = await PhotoSlideshow(Config, Names.map(Name => Staged.get(Name)), Sound, Number(Body.sound_volume ?? 100));
 			const Created = await InsertPost(Pool, Config, User.id, Show, Description, Settings);
 			await Pool.query('DELETE FROM photo_uploads WHERE name = ANY($1::text[])', [Names]);
 			Json(Response, Created?.draft ? { draft: Created.draft, scheduled: Boolean(Settings.publishAt) } : { id: Created }, 201);

@@ -10,7 +10,7 @@ import { AssertVideoVisible, VideoVisibleSql, SetPrivateAccount, DecideFollowReq
 import { PublicBadges } from '../badges.mjs';
 import { Categories } from '../categories.mjs';
 import { Misc } from '../settings.mjs';
-import { FindUser, StoryStatus, UserShape, UserStats, Videos, SetRelation, TagId, TagName, TagSql, MentionedUsers, CommentExtra, Relation, AddComment, FollowList, AvatarUrl, Activity, UnreadActivity, MarkActivityRead, RelationSql, RecordView, RecordProfileView, SetBlock, BlockList, BlockedBetween, DmAudiences, DmSettings, SetDmSetting } from '../store.mjs';
+import { FindUser, StoryStatus, UserShape, UserStats, Videos, SetRelation, TagId, TagName, TagSql, MentionedUsers, CommentExtra, Relation, AddComment, FollowList, AvatarUrl, Activity, UnreadActivity, MarkActivityRead, RelationSql, RecordView, RecordProfileView, SoundSql, SoundShape, SetBlock, BlockList, BlockedBetween, DmAudiences, DmSettings, SetDmSetting } from '../store.mjs';
 
 const ViewSecret = randomBytes(32);
 // Logged-out views are de-duplicated in memory only, so no IP (or IP hash) is ever written to the database.
@@ -152,10 +152,20 @@ export async function Compatibility(Context) {
 	if (Path === '/api/music/detail/' || Path === '/api/music/item_list/') {
 		RequireMethod(Request, ['GET']);
 		const MusicId = Params.get('musicId') ?? Params.get('musicID') ?? '';
-		const Item = /^\d{1,19}$/.test(MusicId) ? (await Videos(Pool, Config.Origin, { id: MusicId, viewer: User?.id })).items[0] : undefined;
-		if (Path === '/api/music/item_list/') { Json(Response, { statusCode: 0, status_code: 0, itemList: Item && Params.get('cursor') !== '1' ? [Item] : [], cursor: '1', hasMore: false }); return true; }
-		if (!Item) { Json(Response, { statusCode: 10219, status_code: 10219 }); return true; }
-		Json(Response, { statusCode: 0, status_code: 0, musicInfo: { music: { ...Item.music, playUrl: Item.video.playAddr, private: false }, author: Item.author, stats: { videoCount: 1 } }, shareMate: {} }); return true;
+		if (!/^\d{1,19}$/.test(MusicId)) { Json(Response, Path === '/api/music/item_list/' ? { statusCode: 0, status_code: 0, itemList: [], cursor: '0', hasMore: false } : { statusCode: 10219, status_code: 10219 }); return true; }
+		// A sound's page lists its original video and every video that reused it, newest first.
+		if (Path === '/api/music/item_list/') {
+			const Cursor = Params.get('cursor');
+			const Feed = await Videos(Pool, Config.Origin, { music: MusicId, viewer: User?.id, before: Cursor && Cursor !== '0' ? Cursor : null, limit: PageSize(Params.get('count'), 30) });
+			Json(Response, { statusCode: 0, status_code: 0, itemList: Feed.items, cursor: Feed.cursor, hasMore: Feed.hasMore }); return true;
+		}
+		const Sound = (await Pool.query(`SELECT ${SoundSql('$1::bigint')} AS sound`, [MusicId])).rows[0].sound;
+		const Item = (await Videos(Pool, Config.Origin, { music: MusicId, viewer: User?.id, limit: 1 })).items[0];
+		if (!Sound && !Item) { Json(Response, { statusCode: 10219, status_code: 10219 }); return true; }
+		const Count = (await Pool.query(`SELECT count(*)::int AS n FROM videos v JOIN users u ON u.id = v.author_id WHERE $2 IN (v.id, v.sound_id) AND v.story_expires_at IS NULL AND ${VideoVisibleSql('$1::bigint')}`, [User?.id ?? null, MusicId])).rows[0].n;
+		const Music = Sound ? SoundShape(Sound, Config.Origin) : { ...Item.music, playUrl: Item.music.playUrl || Item.video.playAddr };
+		const Author = Sound ? UserShape((await FindUser(Pool, Sound.username)), Config.Origin) : Item.author;
+		Json(Response, { statusCode: 0, status_code: 0, musicInfo: { music: { ...Music, private: false }, author: Author, stats: { videoCount: Count } }, shareMate: {} }); return true;
 	}
 	if (Path === '/api/user/playlist/') { RequireMethod(Request, ['GET']); Json(Response, { statusCode: 0, status_code: 0, playList: [], cursor: '0', hasMore: false }); return true; }
 	if (Path === '/api/discover/user/') {

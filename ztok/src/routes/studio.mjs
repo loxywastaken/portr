@@ -8,6 +8,7 @@ import { AvatarUrl, AddComment, SetRelation } from '../store.mjs';
 import { PostSettings, SetPrivateAccount, DecideFollowRequest, FollowRequests } from '../privacy.mjs';
 import { CoverFromFrame, RemoveMedia } from '../media.mjs';
 import { Public } from '../client/shell.mjs';
+import { Claim, GiftCatalog, GiftSummary, Wallet } from '../coins.mjs';
 import { DeleteDraft, DeletePost, Draft, Drafts, MetricLabels, NewFollowers, Post, Posts, PublishDraft, Range, Ranges, ScheduleTime, Series, StudioComments, Totals } from '../studio.mjs';
 
 const Visibility = (Private, Current = 'public') => [['public', Private ? 'Followers (approved)' : 'Everyone'], ['followers', 'Followers'], ['friends', 'Friends (followers you follow back)'], ['only_me', 'Only you']].filter(([Value]) => !Private || Value !== (Current === 'followers' ? 'public' : 'followers'));
@@ -38,6 +39,8 @@ const Icons = {
 	analytics: '<path d="M5 20V11M12 20V5M19 20v-7"/>',
 	comments: '<path d="M5 5h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-7l-4 3v-3H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/>',
 	privacy: '<rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+	sound: '<path d="M9 18V6l11-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/>',
+	coins: '<circle cx="12" cy="12" r="8"/><path d="M12 8v8M9.5 10.5c0-1 1-1.5 2.5-1.5s2.5.6 2.5 1.5-1 1.3-2.5 1.5-2.5.6-2.5 1.5 1 1.5 2.5 1.5 2.5-.5 2.5-1.5"/>',
 	requests: '<circle cx="10" cy="8" r="4"/><path d="M3 20a7 7 0 0 1 14 0M19 8v6M16 11h6"/>',
 	back: '<path d="M15 5l-7 7 7 7"/>',
 	plus: '<path d="M12 5v14M5 12h14"/>',
@@ -135,7 +138,7 @@ async function ReplaceCover(Pool, Config, Table, Row, Seconds, User) {
 async function Handle(Context, Path) {
 	const { Request, Response, Url, Pool, Config, User } = Context;
 	const Here = Url.pathname;
-	if (Request.method === 'POST' && !/^(?:content\/\d+|drafts\/\d+|comments|privacy|requests)$/.test(Path)) throw new HttpError(405, 'MethodNotAllowed');
+	if (Request.method === 'POST' && !/^(?:content\/\d+|drafts\/\d+|comments|coins|privacy|requests)$/.test(Path)) throw new HttpError(405, 'MethodNotAllowed');
 	const Totals_ = await Totals(Pool, User.id);
 	let Title, Content, Section;
 
@@ -162,8 +165,8 @@ async function Handle(Context, Path) {
 		const Data = await Series(Pool, User.id, Days), M = Data.metrics;
 		let Body;
 		if (Tab === 'overview') {
-			const Metric = ['views', 'profile_views', 'likes', 'comments', 'saves', 'reposts'].includes(Url.searchParams.get('metric')) ? Url.searchParams.get('metric') : 'views';
-			Body = `<section class="card"><div class="tiles">${['views', 'profile_views', 'likes', 'comments', 'saves', 'reposts'].map(Name => Tile(Name, M[Name], Link({ metric: Name }), Name === Metric)).join('')}</div>${Chart(Data.days, M[Metric].series, MetricLabels[Metric])}${Tracked(Totals_.tracked_since)}</section>`;
+			const Metric = ['views', 'profile_views', 'likes', 'comments', 'saves', 'reposts', 'gifts'].includes(Url.searchParams.get('metric')) ? Url.searchParams.get('metric') : 'views';
+			Body = `<section class="card"><div class="tiles">${['views', 'profile_views', 'likes', 'comments', 'saves', 'reposts', 'gifts'].map(Name => Tile(Name, M[Name], Link({ metric: Name }), Name === Metric)).join('')}</div>${Chart(Data.days, M[Metric].series, MetricLabels[Metric])}${Tracked(Totals_.tracked_since)}</section>`;
 		} else if (Tab === 'content') {
 			const Top = await Posts(Pool, User.id, { sort: 'range', days: Days, limit: 20 });
 			Body = `<section class="card"><div class="card-head"><h2>Top posts</h2><span class="muted">By views, ${RangeLabel(Days).toLowerCase()}</span></div>${Top.length ? `<ol class="ranked">${Top.map((Row, Index) => `<li><span class="rank">${Index + 1}</span><a href="/tiktokstudio/analytics/${Row.id}"><img src="${Media(Row.cover_name)}" alt="" loading="lazy"><span><span class="caption">${Caption(Row.description)}</span><small>${When(Row.created_at, 'date')}</small></span></a><span class="num"><strong>${Number_(Row.range_views)}</strong><small>views in range</small></span><span class="num"><strong>${Number_(Row.views)}</strong><small>all-time views</small></span><span class="num"><strong>${Number_(Row.likes)}</strong><small>likes</small></span></li>`).join('')}</ol>` : '<div class="empty"><h3>No posts yet</h3><p>Your best posts are ranked here.</p></div>'}</section>`;
@@ -181,14 +184,14 @@ async function Handle(Context, Path) {
 		const Row = await Post(Pool, User.id, Path.slice(10));
 		const Age = Math.ceil((Date.now() - new Date(Row.created_at).getTime()) / 86400000);
 		const Days = Url.searchParams.has('range') ? Range(Url.searchParams.get('range')) : Ranges.find(Value => Value >= Age) ?? 365;
-		const Metric = ['views', 'likes', 'comments', 'saves', 'reposts'].includes(Url.searchParams.get('metric')) ? Url.searchParams.get('metric') : 'views';
+		const Metric = ['views', 'likes', 'comments', 'saves', 'reposts', 'gifts'].includes(Url.searchParams.get('metric')) ? Url.searchParams.get('metric') : 'views';
 		const Link = (Changes = {}) => `/tiktokstudio/analytics/${Row.id}?${new URLSearchParams({ range: Days, metric: Metric, ...Changes })}`;
 		const Data = await Series(Pool, User.id, Days, Row.id);
 		const Engagement = Row.views ? ((Row.likes + Row.comments + Row.saves + Row.reposts) / Row.views * 100).toFixed(1) : '0.0';
 		Content = `<p class="crumbs"><a href="/tiktokstudio/analytics?tab=content">${Icon('back')} Analytics</a></p>
 		<header class="page-head post-head"><img src="${Media(Row.cover_name)}" alt=""><div><h1 class="caption">${Caption(Row.description)}</h1><p>Posted ${When(Row.created_at)} · ${Escape(VisibilityLabel(User.private_account, Row.visibility))} · ${Clock(Row.duration)}</p><p class="links"><a href="/@${User.username}/video/${Row.id}">View post</a><a href="/tiktokstudio/content/${Row.id}">Edit</a></p></div></header>
-		<section class="card"><div class="card-head"><h2>All time</h2></div><div class="tiles">${[['Views', Row.views], ['Likes', Row.likes], ['Comments', Row.comments], ['Saves', Row.saves], ['Reposts', Row.reposts]].map(([Label, Value]) => `<div class="tile"><span class="tile-label">${Label}</span><strong>${Number_(Value)}</strong></div>`).join('')}<div class="tile"><span class="tile-label">Engagement rate</span><strong>${Engagement}%</strong><span class="delta flat">Likes, comments, saves and reposts per view</span></div></div></section>
-		<section class="card"><div class="card-head"><h2>By day</h2>${RangePicker(Days, Value => Link({ range: Value }))}</div><div class="tiles compact">${['views', 'likes', 'comments', 'saves', 'reposts'].map(Name => Tile(Name, Data.metrics[Name], Link({ metric: Name }), Name === Metric)).join('')}</div>${Chart(Data.days, Data.metrics[Metric].series, MetricLabels[Metric])}${Tracked(Totals_.tracked_since)}</section>`;
+		<section class="card"><div class="card-head"><h2>All time</h2></div><div class="tiles">${[['Views', Row.views], ['Likes', Row.likes], ['Comments', Row.comments], ['Saves', Row.saves], ['Reposts', Row.reposts], ['Gift coins', Row.gift_coins]].map(([Label, Value]) => `<div class="tile"><span class="tile-label">${Label}</span><strong>${Number_(Value)}</strong></div>`).join('')}<div class="tile"><span class="tile-label">Engagement rate</span><strong>${Engagement}%</strong><span class="delta flat">Likes, comments, saves and reposts per view</span></div></div></section>
+		<section class="card"><div class="card-head"><h2>By day</h2>${RangePicker(Days, Value => Link({ range: Value }))}</div><div class="tiles compact">${['views', 'likes', 'comments', 'saves', 'reposts', 'gifts'].map(Name => Tile(Name, Data.metrics[Name], Link({ metric: Name }), Name === Metric)).join('')}</div>${Chart(Data.days, Data.metrics[Metric].series, MetricLabels[Metric])}${Tracked(Totals_.tracked_since)}</section>`;
 	}
 
 	else if (Path === 'content') {
@@ -303,13 +306,45 @@ async function Handle(Context, Path) {
 				<div id="cover-picker" hidden><label class="field">Cover<input type="range" name="cover_time" min="0" max="0" step="0.1" value="0" data-cover-for="#video-preview"></label><p class="field-help">Drag to pick the frame shown before people tap play.</p></div>
 				<button id="change-video" class="secondary" type="button" hidden>Change video</button></div></section>
 			<section class="card editor-details"><label class="field">Caption<textarea name="description" maxlength="2200" rows="5" placeholder="Describe your video. Add #hashtags and @mentions." data-count></textarea><span class="count">0 / 2200</span></label>
+				<div class="field sound-field"><span>Sound</span>
+					<div id="sound-chosen" class="sound-row" hidden><img alt=""><span><strong></strong><small></small></span><button type="button" id="sound-remove" class="secondary small">Remove</button></div>
+					<button type="button" id="sound-pick" class="secondary">${Icon('sound')} Add sound</button>
+					<div id="sound-levels" class="sound-levels" hidden><label>Added sound<input type="range" name="sound_volume" min="0" max="200" value="100" aria-valuetext="100%"></label><label data-video-only>Original sound<input type="range" name="original_volume" min="0" max="200" value="0" aria-valuetext="0%"></label></div></div>
 				${Select('visibility', 'Who can watch', Visibility(User.private_account), 'public')}${Select('comments', 'Who can comment', Comments, 'default')}${Select('category', 'Explore category', CategoryOptions, '')}
 				<fieldset class="field when"><legend>When to post</legend><label class="radio"><input type="radio" name="when" value="now" checked> Now</label><label class="radio"><input type="radio" name="when" value="schedule"> Schedule</label><label class="radio"><input type="radio" name="when" value="story"> Story (24 hours)</label>
 					<input type="datetime-local" name="publish_local" aria-label="Date and time to post" hidden><small data-for="schedule" hidden>15 minutes to 30 days from now, in your time zone.</small><small data-for="story" hidden>Shows in the stories tray for 24 hours instead of on your profile.</small></fieldset>
 				<p class="field-help">Your account’s privacy and comment settings also apply.</p>
 				<div class="form-actions"><button type="reset" class="secondary">Discard</button><button type="button" id="save-draft" class="secondary">Save draft</button><button type="submit" id="post-button">Post</button></div>
 				<progress id="upload-progress" max="100" value="0" hidden></progress><p id="status" role="status" aria-live="polite"></p><a id="posted-link" class="button secondary small" hidden>View</a></section></form>
-		<script id="upload-config" type="application/json">${JSON.stringify({ csrf: User.csrf_token, maxBytes: Config.MaxVideoBytes, maxSeconds: Config.MaxVideoSeconds, username: User.username }).replaceAll('<', '\\u003c')}</script>`;
+		<dialog id="sound-dialog" class="sound-dialog" aria-labelledby="sound-title"><div class="sound-head"><h2 id="sound-title">Add sound</h2><button type="button" class="sound-close" aria-label="Close">×</button></div>
+			<label class="search"><span class="sr">Search sounds</span><input type="search" id="sound-search" placeholder="Search by creator"></label><ul id="sound-results" class="sound-results" aria-live="polite"></ul><audio id="sound-preview" preload="none"></audio></dialog>
+		<script id="upload-config" type="application/json">${JSON.stringify({ csrf: User.csrf_token, maxBytes: Config.MaxVideoBytes, maxSeconds: Config.MaxVideoSeconds, username: User.username, sound: /^\d{1,19}$/.test(Url.searchParams.get('sound') ?? '') ? Url.searchParams.get('sound') : null }).replaceAll('<', '\\u003c')}</script>`;
+	}
+
+	else if (Path === 'coins') {
+		Section = 'coins'; Title = 'Coins & gifts';
+		if (Request.method === 'POST') {
+			const Body = await ReadBody(Request); RequireCsrf(Request, User, Body.csrf);
+			const Claimed = await Claim(Pool, User.id).catch(Failure => { if (Failure.message === 'AlreadyClaimed') return null; throw Failure; });
+			return Redirect(Response, Claimed ? `${Here}?claimed=${Claimed.added}` : Here);
+		}
+		const [Wallet_, Gifts] = await Promise.all([Wallet(Pool, User.id), GiftSummary(Pool, User.id)]);
+		const GiftOf = Key => GiftCatalog.find(Item => Item.key === Key) ?? { emoji: '🎁', name: 'Gift' };
+		const Reasons = { welcome: 'Welcome bonus', daily: 'Daily coins', gift: 'Gift sent' };
+		const Claimed = Number(Url.searchParams.get('claimed')) || 0;
+		Content = `<header class="page-head"><div><h1>Coins & gifts</h1><p class="muted">Coins are free. You can’t buy them or cash them out.</p></div></header>
+		${Claimed ? `<p class="notice" role="status">You got ${Number_(Claimed)} coins.</p>` : ''}
+		<div class="columns"><section class="card wallet"><div class="card-head"><h2>Your coins</h2></div>
+			<p class="balance"><span class="coin" aria-hidden="true"></span><strong>${Number_(Wallet_.balance)}</strong><span class="sr"> coins</span></p>
+			${Wallet_.claimable ? `<form method="post">${Csrf(User)}<button>${Icon('plus')} Claim ${Number_(Wallet_.claim)} coins</button></form><p class="field-help">${Wallet_.claim > Wallet_.daily ? `Includes your ${Number_(Wallet_.welcome)}-coin welcome bonus. ` : ''}You can claim ${Wallet_.daily} free coins every day.</p>`
+				: `<p class="muted">You’ve claimed today’s coins. Come back ${When(Wallet_.nextClaimAt)} for ${Wallet_.daily} more.</p>`}
+			<h3>Recent activity</h3>${Gifts.history.length ? `<ul class="ledger">${Gifts.history.map(Row => `<li><span>${Reasons[Row.reason]}</span><small>${When(Row.created_at)}</small><strong class="${Row.amount > 0 ? 'up' : ''}">${Row.amount > 0 ? '+' : '−'}${Number_(Math.abs(Row.amount))}</strong></li>`).join('')}</ul>` : '<p class="muted">Nothing yet.</p>'}</section>
+		<div class="stack"><section class="card"><div class="card-head"><h2>Gifts you received</h2></div>
+			<div class="tiles"><div class="tile"><span class="tile-label">Last 28 days</span><strong>${Number_(Gifts.totals.recent_coins)}</strong><span class="delta flat">coins from ${Number_(Gifts.totals.recent_gifts)} gift${Gifts.totals.recent_gifts === 1 ? '' : 's'}</span></div><div class="tile"><span class="tile-label">All time</span><strong>${Number_(Gifts.totals.coins)}</strong><span class="delta flat">coins from ${Number_(Gifts.totals.gifts)} gift${Gifts.totals.gifts === 1 ? '' : 's'}</span></div></div>
+			${Gifts.top.length ? `<h3>Top gifters</h3><ul class="people">${Gifts.top.map(Row => `<li><a href="/@${Row.username}"><img src="${AvatarUrl(Row, Config.Origin)}" alt=""><span><strong>${Escape(Row.display_name)}</strong><small>@${Row.username} · ${Row.gifts} gift${Row.gifts === 1 ? '' : 's'}</small></span></a><span class="pill">${Number_(Row.coins)} coins</span></li>`).join('')}</ul>` : '<p class="muted">Gifts people send on your posts show up here.</p>'}
+			${Gifts.recent.length ? `<h3>Latest</h3><ul class="gift-feed">${Gifts.recent.map(Row => `<li><span class="gift-emoji" aria-hidden="true">${GiftOf(Row.gift).emoji}</span><span><strong>${Row.username ? `<a href="/@${Row.username}">${Escape(Row.display_name)}</a>` : 'Someone'}</strong> sent a ${GiftOf(Row.gift).name}<small>${When(Row.created_at)} · ${Number_(Row.coins)} coin${Row.coins === 1 ? '' : 's'}</small></span>${Row.cover_name ? `<a href="/@${User.username}/video/${Row.video_id}"><img src="${Media(Row.cover_name)}" alt="On your post" loading="lazy"></a>` : ''}</li>`).join('')}</ul>` : ''}</section>
+			<section class="card"><div class="card-head"><h2>Gifts</h2><span class="muted">Send them from the gift button on any post</span></div><ul class="gift-catalog">${GiftCatalog.map(Item => `<li><span class="gift-emoji" aria-hidden="true">${Item.emoji}</span><strong>${Item.name}</strong><small>${Number_(Item.coins)} coin${Item.coins === 1 ? '' : 's'}</small></li>`).join('')}</ul>
+			${Gifts.sent.length ? `<h3>Gifts you sent</h3><ul class="gift-feed">${Gifts.sent.map(Row => `<li><span class="gift-emoji" aria-hidden="true">${GiftOf(Row.gift).emoji}</span><span>${GiftOf(Row.gift).name} to <a href="/@${Row.username}">${Escape(Row.display_name)}</a><small>${When(Row.created_at)}</small></span></li>`).join('')}</ul>` : ''}</section></div></div>`;
 	}
 
 	else if (Path === 'privacy') {
@@ -341,7 +376,7 @@ async function Handle(Context, Path) {
 
 	else throw new HttpError(404, 'NotFound');
 
-	const Nav = [['home', '/tiktokstudio', 'Home'], ['content', '/tiktokstudio/content', 'Posts'], ['analytics', '/tiktokstudio/analytics', 'Analytics'], ['comments', '/tiktokstudio/comments', 'Comments']];
+	const Nav = [['home', '/tiktokstudio', 'Home'], ['content', '/tiktokstudio/content', 'Posts'], ['analytics', '/tiktokstudio/analytics', 'Analytics'], ['comments', '/tiktokstudio/comments', 'Comments'], ['coins', '/coin', 'Coins & gifts']];
 	const Settings = [['privacy', '/account/privacy', 'Privacy'], ['requests', '/account/requests', 'Follow requests']];
 	const Link = ([Key, Href, Label]) => `<a href="${Href}"${Key === Section ? ' aria-current="page"' : ''}>${Icon(Key)}<span>${Label}</span></a>`;
 	Response.setHeader('content-type', 'text/html; charset=utf-8');
@@ -356,7 +391,7 @@ async function Handle(Context, Path) {
 
 const Routes = [
 	[/^\/tiktokstudio\/?$/, 'home'], [/^\/(?:tiktokstudio\/)?upload\/?$/, 'upload'], [/^\/tiktokstudio\/content\/?$/, 'content'], [/^\/tiktokstudio\/analytics\/?$/, 'analytics'],
-	[/^\/tiktokstudio\/comments\/?$/, 'comments'], [/^\/account\/privacy$/, 'privacy'], [/^\/account\/requests$/, 'requests'],
+	[/^\/tiktokstudio\/comments\/?$/, 'comments'], [/^\/(?:coin|tiktokstudio\/coins)\/?$/, 'coins'], [/^\/account\/privacy$/, 'privacy'], [/^\/account\/requests$/, 'requests'],
 	[/^\/(?:tiktokstudio\/content|account\/posts)\/(\d+)$/, Match => `content/${Match[1]}`], [/^\/tiktokstudio\/drafts\/(\d+)$/, Match => `drafts/${Match[1]}`], [/^\/tiktokstudio\/analytics\/(\d+)$/, Match => `analytics/${Match[1]}`],
 ];
 
