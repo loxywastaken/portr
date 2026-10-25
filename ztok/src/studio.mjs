@@ -3,7 +3,7 @@ import { HttpError, Id } from './http.mjs';
 import { RemovePostMedia } from './media.mjs';
 import { RemovedSql } from './moderation.mjs';
 
-const Columns = 'author_id, description, file_name, cover_name, width, height, duration, bytes, visibility, comment_permission, category, images';
+const Columns = 'author_id, description, file_name, cover_name, width, height, duration, bytes, visibility, comment_permission, category, images, sound_id';
 const Today = "(now() AT TIME ZONE 'UTC')::date";
 export const Ranges = [7, 28, 60, 365];
 export const Range = Value => Ranges.includes(Number(Value)) ? Number(Value) : 28;
@@ -65,11 +65,12 @@ const Metrics = {
 	reposts: `SELECT (r.created_at AT TIME ZONE 'UTC')::date AS day, count(*)::int AS n FROM reposts r JOIN videos v ON v.id = r.video_id WHERE v.author_id = $1 AND $Video GROUP BY 1`,
 	followers: `SELECT (created_at AT TIME ZONE 'UTC')::date AS day, count(*)::int AS n FROM follows WHERE following_id = $1 AND $NoVideo GROUP BY 1`,
 	unfollows: `SELECT day, unfollows AS n FROM user_daily_stats WHERE user_id = $1 AND $NoVideo`,
+	gifts: `SELECT (g.created_at AT TIME ZONE 'UTC')::date AS day, sum(g.coins)::int AS n FROM gifts g LEFT JOIN videos v ON v.id = g.video_id WHERE g.recipient_id = $1 AND $Video GROUP BY 1`,
 };
-export const MetricLabels = { views: 'Post views', profile_views: 'Profile views', likes: 'Likes', comments: 'Comments', saves: 'Saves', reposts: 'Reposts', followers: 'New followers', unfollows: 'Unfollows' };
+export const MetricLabels = { views: 'Post views', profile_views: 'Profile views', likes: 'Likes', comments: 'Comments', saves: 'Saves', reposts: 'Reposts', followers: 'New followers', unfollows: 'Unfollows', gifts: 'Gift coins' };
 
 export async function Series(Pool, UserId, Days, VideoId = null) {
-	const Names = VideoId ? ['views', 'likes', 'comments', 'saves', 'reposts'] : Object.keys(Metrics);
+	const Names = VideoId ? ['views', 'likes', 'comments', 'saves', 'reposts', 'gifts'] : Object.keys(Metrics);
 	const Parts = Names.map(Name => `SELECT '${Name}' AS metric, day, n FROM (${Metrics[Name].replace('$Video', VideoId ? 'v.id = $3' : 'true').replace('$NoVideo', 'true')}) m WHERE day > ${Today} - $2::int * 2`);
 	const Rows = (await Pool.query(Parts.join(' UNION ALL '), VideoId ? [UserId, Days, Id(VideoId)] : [UserId, Days])).rows;
 	const Now = new Date(), Start = Date.UTC(Now.getUTCFullYear(), Now.getUTCMonth(), Now.getUTCDate()) - (Days - 1) * 86400000;
@@ -118,7 +119,8 @@ export async function Post(Pool, UserId, VideoId) {
 		(SELECT count(*)::int FROM likes l WHERE l.video_id = v.id) AS likes,
 		(SELECT count(*)::int FROM comments c WHERE c.video_id = v.id AND NOT ${RemovedSql('comment', 'c.id')}) AS comments,
 		(SELECT count(*)::int FROM favorites f WHERE f.video_id = v.id) AS saves,
-		(SELECT count(*)::int FROM reposts r WHERE r.video_id = v.id) AS reposts
+		(SELECT count(*)::int FROM reposts r WHERE r.video_id = v.id) AS reposts,
+		(SELECT coalesce(sum(g.coins), 0)::int FROM gifts g WHERE g.video_id = v.id) AS gift_coins
 		FROM videos v WHERE v.id = $1 AND v.author_id = $2 AND v.story_expires_at IS NULL`, [Id(VideoId), UserId])).rows;
 	if (!Row) throw new HttpError(404, 'VideoNotFound');
 	return Row;

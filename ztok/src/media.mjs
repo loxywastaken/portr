@@ -6,13 +6,13 @@ import { pipeline } from 'node:stream/promises';
 import { Transform } from 'node:stream';
 import { createHash, randomUUID } from 'node:crypto';
 import { join, extname } from 'node:path';
-import { PostSettings } from './privacy.mjs';
+import { AssertVideoVisible, PostSettings } from './privacy.mjs';
 import { GuessCategory } from './categories.mjs';
 import { HttpError } from './http.mjs';
 import { AssetFile, Root } from './client/archive.mjs';
 
-export const Mime = { '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.otf': 'font/otf', '.mp4': 'video/mp4', '.json': 'application/json', '.ico': 'image/x-icon' };
-const SafeName = /^[a-zA-Z0-9_-]+\.(?:mp4|jpg|png|svg)$/;
+export const Mime = { '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf', '.otf': 'font/otf', '.mp4': 'video/mp4', '.m4a': 'audio/mp4', '.json': 'application/json', '.ico': 'image/x-icon' };
+const SafeName = /^[a-zA-Z0-9_-]+\.(?:mp4|m4a|jpg|png|svg)$/;
 
 function Run(Executable, Args, Failure = 'InvalidVideo', Timeout = 180000, Nice = 0) {
 	return new Promise((Resolve, Reject) => {
@@ -36,6 +36,10 @@ export async function ImportVideo(Pool, Config, UserId, Input, Description = '',
 	PostSettings(Settings.visibility, Settings.comment_permission);
 	if (typeof Description !== 'string' || Description.length > 2200) throw new HttpError(400, 'DescriptionTooLong');
 	const Video = await TranscodeVideo(Config, Input, Config.MaxVideoBytes, Config.MaxVideoSeconds, Settings.coverTime);
+	if (Settings.sound) {
+		try { await ApplySound(Config, Video, Settings.sound, Settings.soundVolume, Settings.originalVolume); }
+		catch (Error) { await RemovePostMedia(Config, [{ file_name: Video.VideoName, cover_name: Video.CoverName }]); throw Error; }
+	}
 	return InsertPost(Pool, Config, UserId, Video, Description, Settings);
 }
 
@@ -45,12 +49,12 @@ export async function InsertPost(Pool, Config, UserId, Video, Description, Setti
 	const Images = Video.Images ? JSON.stringify(Video.Images) : null;
 	try {
 		if (Settings.draft) {
-			const Draft = await Pool.query('INSERT INTO video_drafts(author_id, description, file_name, cover_name, width, height, duration, bytes, visibility, comment_permission, category, publish_at, images) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id',
-				[UserId, Description, Video.VideoName, Video.CoverName, Video.Width, Video.Height, Video.Duration, Video.Bytes, Settings.visibility, Settings.comment_permission, Settings.category ?? GuessCategory(Description), Settings.publishAt ?? null, Images]);
+			const Draft = await Pool.query('INSERT INTO video_drafts(author_id, description, file_name, cover_name, width, height, duration, bytes, visibility, comment_permission, category, publish_at, images, sound_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id',
+				[UserId, Description, Video.VideoName, Video.CoverName, Video.Width, Video.Height, Video.Duration, Video.Bytes, Settings.visibility, Settings.comment_permission, Settings.category ?? GuessCategory(Description), Settings.publishAt ?? null, Images, Video.SoundId ?? null]);
 			return { draft: Draft.rows[0].id };
 		}
-		const Result = await Pool.query("INSERT INTO videos(author_id, description, file_name, cover_name, width, height, duration, bytes, visibility, comment_permission, category, story_expires_at, images) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, CASE WHEN $12 THEN now() + interval '24 hours' END, $13) RETURNING id",
-			[UserId, Description, Video.VideoName, Video.CoverName, Video.Width, Video.Height, Video.Duration, Video.Bytes, Settings.visibility, Settings.comment_permission, Settings.story ? 0 : Settings.category ?? GuessCategory(Description), Boolean(Settings.story), Images]);
+		const Result = await Pool.query("INSERT INTO videos(author_id, description, file_name, cover_name, width, height, duration, bytes, visibility, comment_permission, category, story_expires_at, images, sound_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, CASE WHEN $12 THEN now() + interval '24 hours' END, $13, $14) RETURNING id",
+			[UserId, Description, Video.VideoName, Video.CoverName, Video.Width, Video.Height, Video.Duration, Video.Bytes, Settings.visibility, Settings.comment_permission, Settings.story ? 0 : Settings.category ?? GuessCategory(Description), Boolean(Settings.story), Images, Video.SoundId ?? null]);
 		return Result.rows[0].id;
 	} catch (Error) {
 		await RemovePostMedia(Config, [{ file_name: Video.VideoName, cover_name: Video.CoverName, images: Video.Images }]);
@@ -63,6 +67,45 @@ export const PostMediaNames = Row => [Row.file_name, Row.cover_name, Row.downloa
 export const RemoveMediaNames = (Config, Names) => Promise.all(Names.map(Name => RemoveMedia(Config, Name).catch(() => {})));
 export async function RemovePostMedia(Config, Rows) {
 	await Promise.all(Rows.flatMap(PostMediaNames).map(Name => RemoveMedia(Config, Name).catch(() => {})));
+}
+
+// Sounds. A sound is a public video's audio track copied to its own file (made the first time it's used).
+export async function EnsureSound(Pool, Config, MusicId, ViewerId) {
+	const Existing = (await Pool.query('SELECT * FROM sounds WHERE id = $1', [MusicId])).rows[0];
+	if (Existing) return Existing;
+	const Video = (await Pool.query(`SELECT v.id, v.file_name, v.author_id, v.duration, v.images, u.display_name FROM videos v JOIN users u ON u.id = v.author_id
+		WHERE v.id = $1 AND v.visibility = 'public' AND v.story_expires_at IS NULL AND NOT u.private_account AND u.suspended_at IS NULL AND u.deactivated_at IS NULL`, [MusicId])).rows[0];
+	if (!Video || Video.images) throw new HttpError(404, 'SoundNotFound');
+	await AssertVideoVisible(Pool, Video.id, ViewerId);
+	const Source = join(Config.MediaDir, Video.file_name);
+	const Probe = JSON.parse(await Run(Config.FFprobe, ['-v', 'error', '-show_streams', '-of', 'json', Source]));
+	if (!Probe.streams.some(Track => Track.codec_type === 'audio')) throw new HttpError(422, 'NoAudio');
+	const Name = `${randomUUID()}.m4a`, File = join(Config.MediaDir, Name);
+	await Run(Config.FFmpeg, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-i', Source, '-vn', '-map', '0:a:0', '-map_metadata', '-1', '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', '-threads', '1', '-n', File], 'InvalidSound');
+	try {
+		const Row = (await Pool.query("INSERT INTO sounds(id, author_id, title, file_name, duration) VALUES ($1, $2, 'original sound', $3, $4) ON CONFLICT (id) DO NOTHING RETURNING *", [Video.id, Video.author_id, Name, Video.duration])).rows[0];
+		if (Row) return Row;
+		await rm(File, { force: true });
+		return (await Pool.query('SELECT * FROM sounds WHERE id = $1', [MusicId])).rows[0];
+	} catch (Error) { await rm(File, { force: true }); throw Error; }
+}
+
+// Puts a sound under an uploaded video: the sound loops or is cut to the video's length, and the video's own
+// audio is kept at OriginalVolume (0 removes it). Volumes are percentages.
+export async function ApplySound(Config, Video, Sound, SoundVolume = 100, OriginalVolume = 0) {
+	const Input = join(Config.MediaDir, Video.VideoName), Output = join(Config.MediaDir, '.incoming', `${randomUUID()}.mp4`);
+	const Level = Value => Math.min(Math.max(Number(Value) || 0, 0), 200) / 100;
+	const Probe = JSON.parse(await Run(Config.FFprobe, ['-v', 'error', '-show_streams', '-of', 'json', Input]));
+	const Keep = Level(OriginalVolume) > 0 && Probe.streams.some(Track => Track.codec_type === 'audio');
+	const Added = `[1:a]volume=${Level(SoundVolume)},atrim=0:${Number(Video.Duration).toFixed(2)},asetpts=N/SR/TB`;
+	const Graph = Keep ? `${Added}[s];[0:a]volume=${Level(OriginalVolume)}[o];[o][s]amix=inputs=2:duration=first:normalize=0[a]` : `${Added}[a]`;
+	await mkdir(join(Config.MediaDir, '.incoming'), { recursive: true });
+	try {
+		await Run(Config.FFmpeg, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-i', Input, '-stream_loop', '-1', '-i', join(Config.MediaDir, Sound.file_name),
+			'-filter_complex', Graph, '-map', '0:v:0', '-map', '[a]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k', '-t', Number(Video.Duration).toFixed(2), '-movflags', '+faststart', '-threads', '2', '-n', Output], 'InvalidSound', Math.max(180000, Video.Duration * 3000));
+		await rename(Output, Input);
+		Video.Bytes = (await stat(Input)).size; Video.SoundId = Sound.id;
+	} catch (Error) { await rm(Output, { force: true }); throw Error; }
 }
 
 // Photo posts. Each photo is re-encoded (which drops metadata such as location) to fit 1080x1920.
@@ -85,7 +128,7 @@ export async function SavePhoto(Config, Bytes) {
 // The slideshow every photo post carries: each photo for PhotoSeconds on black at 720x1280, with a short
 // crossfade, plus a silent audio track so every player treats it like any other video.
 export const PhotoSeconds = 3;
-export async function PhotoSlideshow(Config, Images) {
+export async function PhotoSlideshow(Config, Images, Sound = null, Volume = 100) {
 	const Key = randomUUID(), VideoName = `${Key}.mp4`, CoverName = `${Key}.jpg`;
 	const Video = join(Config.MediaDir, VideoName), Cover = join(Config.MediaDir, CoverName), Fade = 0.35;
 	const Inputs = Images.flatMap(Image => ['-loop', '1', '-framerate', '24', '-t', String(PhotoSeconds), '-i', join(Config.MediaDir, Image.name)]);
@@ -94,11 +137,13 @@ export async function PhotoSlideshow(Config, Images) {
 	const Chain = Images.slice(1).map((_, Index) => { const Out = `x${Index + 1}`, Step = `[${Last}][s${Index + 1}]xfade=transition=fade:duration=${Fade}:offset=${((Index + 1) * (PhotoSeconds - Fade)).toFixed(2)}[${Out}]`; Last = Out; return Step; });
 	const Duration = Images.length * PhotoSeconds - (Images.length - 1) * Fade;
 	try {
-		await Run(Config.FFmpeg, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-protocol_whitelist', 'file', ...Inputs, '-f', 'lavfi', '-t', Duration.toFixed(2), '-i', 'anullsrc=r=44100:cl=stereo',
-			'-filter_complex', [...Scaled, ...Chain].join(';'), '-map', `[${Last}]`, '-map', `${Images.length}:a`, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '24', '-pix_fmt', 'yuv420p',
+		const Audio = Sound ? ['-stream_loop', '-1', '-i', join(Config.MediaDir, Sound.file_name)] : ['-f', 'lavfi', '-t', Duration.toFixed(2), '-i', 'anullsrc=r=44100:cl=stereo'];
+		const Mix = Sound ? [`[${Images.length}:a]volume=${Math.min(Math.max(Number(Volume) || 0, 0), 200) / 100},atrim=0:${Duration.toFixed(2)},asetpts=N/SR/TB[a]`] : [];
+		await Run(Config.FFmpeg, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-protocol_whitelist', 'file', ...Inputs, ...Audio,
+			'-filter_complex', [...Scaled, ...Chain, ...Mix].join(';'), '-map', `[${Last}]`, '-map', Sound ? '[a]' : `${Images.length}:a`, '-t', Duration.toFixed(2), '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '24', '-pix_fmt', 'yuv420p',
 			'-c:a', 'aac', '-b:a', '64k', '-shortest', '-movflags', '+faststart', '-threads', '2', '-n', Video], 'InvalidImage', Math.max(180000, Images.length * 20000));
 		await Run(Config.FFmpeg, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-i', join(Config.MediaDir, Images[0].name), '-frames:v', '1', '-q:v', '3', '-threads', '1', '-n', Cover], 'InvalidImage');
-		return { VideoName, CoverName, Width: 720, Height: 1280, Duration, Bytes: (await stat(Video)).size, Images };
+		return { VideoName, CoverName, Width: 720, Height: 1280, Duration, Bytes: (await stat(Video)).size, Images, SoundId: Sound?.id ?? null };
 	} catch (Error) { await Promise.allSettled([rm(Video, { force: true }), rm(Cover, { force: true })]); throw Error; }
 }
 

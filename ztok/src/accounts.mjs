@@ -9,6 +9,7 @@ export async function DeleteAccount(Pool, Config, UserId) {
 	const Videos = (await Pool.query('DELETE FROM videos WHERE author_id = $1 RETURNING file_name, cover_name, download_name, images', [UserId])).rows;
 	Videos.push(...(await Pool.query('DELETE FROM video_drafts WHERE author_id = $1 RETURNING file_name, cover_name, images', [UserId])).rows);
 	Videos.push(...(await Pool.query('DELETE FROM photo_uploads WHERE owner_id = $1 RETURNING name AS file_name', [UserId])).rows);
+	Videos.push(...(await Pool.query('DELETE FROM sounds WHERE author_id = $1 RETURNING file_name', [UserId])).rows);
 	Videos.push(...(await Pool.query('DELETE FROM message_media WHERE owner_id = $1 RETURNING file_name, cover_name', [UserId])).rows);
 	await Pool.query('DELETE FROM users WHERE id = $1', [UserId]);
 	await RemovePostMedia(Config, Videos);

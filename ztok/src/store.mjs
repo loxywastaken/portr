@@ -203,7 +203,7 @@ export async function UserStats(Pool, UserId) {
 	return { ...Result.rows[0], heart: Result.rows[0].heartCount };
 }
 
-export async function Videos(Pool, Origin, { before, author, following, likedBy, savedBy, repostedBy, collection, id, exclude, tag, viewer, query, forYou, category, pinned, friendsOf, story = false, offset = 0, order = 'latest', limit = 20 } = {}) {
+export async function Videos(Pool, Origin, { before, author, following, likedBy, savedBy, repostedBy, collection, id, exclude, tag, viewer, query, forYou, category, pinned, friendsOf, music, story = false, offset = 0, order = 'latest', limit = 20 } = {}) {
 	const Values = [viewer ?? null];
 	const Conditions = [];
 	function Where(Sql, Value) { Values.push(Value); Conditions.push(Sql.replace('?', `$${Values.length}`)); }
@@ -225,6 +225,7 @@ export async function Videos(Pool, Origin, { before, author, following, likedBy,
 	if (repostedBy) Where('EXISTS (SELECT 1 FROM reposts r WHERE r.user_id = ? AND r.video_id = v.id)', repostedBy);
 	if (tag) Where(TagSql('v.description'), String(tag).toLowerCase());
 	if (category) Where('v.category = ?', category);
+	if (music) Where('? IN (v.id, v.sound_id)', Id(music));
 	if (query) Where("v.description ILIKE ? ESCAPE '\\'", `%${String(query).slice(0, 100).replace(/[\\%_]/g, '\\$&')}%`);
 	Conditions.push(`NOT ${BlockedBetween('$1', 'v.author_id')}`);
 	Conditions.push(VideoVisibleSql('$1::bigint'));
@@ -239,13 +240,41 @@ export async function Videos(Pool, Origin, { before, author, following, likedBy,
 		EXISTS (SELECT 1 FROM likes l WHERE l.video_id = v.id AND l.user_id = $1) AS liked,
 		EXISTS (SELECT 1 FROM favorites f WHERE f.video_id = v.id AND f.user_id = $1) AS saved,
 		${RelationSql('$1', 'v.author_id')} AS relation, ${CommentsAllowedSql('$1::bigint')} AS can_comment, ${StoryStatusSql('$1::bigint', 'v.author_id')} AS story_status,
-		v.story_expires_at IS NOT NULL AND EXISTS (SELECT 1 FROM story_views sv WHERE sv.story_id = v.id AND sv.viewer_id = $1) AS story_viewed
+		v.story_expires_at IS NOT NULL AND EXISTS (SELECT 1 FROM story_views sv WHERE sv.story_id = v.id AND sv.viewer_id = $1) AS story_viewed,
+		${SoundSql('v.sound_id')} AS sound
 		FROM videos v JOIN users u ON u.id = v.author_id ${Conditions.length ? `WHERE ${Conditions.join(' AND ')}` : ''}
 		ORDER BY ${pinned ? 'v.pinned_at DESC' : order === 'oldest' ? 'v.id ASC' : order === 'popular' ? 'v.view_count DESC, v.id DESC' : 'v.id DESC'} LIMIT $${Values.length} OFFSET ${Offset}`, Values);
 	const HasMore = Result.rows.length === Values.at(-1);
 	const Rows = HasMore ? Result.rows.slice(0, -1) : Result.rows;
 	const Mentioned = await MentionedUsers(Pool, Rows.map(Row => Row.description));
 	return { items: Rows.map(Row => VideoShape(Row, Origin, Mentioned, viewer)), hasMore: HasMore, cursor: order === 'popular' ? String(Offset + Rows.length) : Rows.at(-1)?.id ?? '0' };
+}
+
+// Sounds: a reused sound keeps its original author and title, like TikTok's "original sound - Name".
+export const SoundSql = Column => `(SELECT json_build_object('id', s.id::text, 'title', s.title, 'author', su.display_name, 'username', su.username, 'avatar_name', su.avatar_name, 'file', s.file_name, 'duration', s.duration)
+	FROM sounds s JOIN users su ON su.id = s.author_id WHERE s.id = ${Column})`;
+export function SoundShape(Sound, Origin) {
+	const Cover = AvatarUrl(Sound, Origin);
+	return { id: Sound.id, title: Sound.title, authorName: Sound.author, original: true, duration: Sound.duration, playUrl: `${Origin}/media/${Sound.file}`, coverThumb: Cover, coverMedium: Cover, coverLarge: Cover };
+}
+
+// Sounds to pick from when posting: public videos with audio (and sounds already in use), most used first.
+export async function FindSounds(Pool, Origin, Viewer, Query = '', Only = null) {
+	const Search = `%${String(Query).slice(0, 80).replace(/[\\%_]/g, '\\$&')}%`;
+	const Rows = (await Pool.query(`WITH Candidates AS (
+			SELECT DISTINCT ON (coalesce(v.sound_id, v.id)) coalesce(v.sound_id, v.id) AS music_id, v.id AS video_id, v.file_name AS video_file, v.cover_name, v.duration, v.view_count, u.display_name, u.username, u.avatar_name
+			FROM videos v JOIN users u ON u.id = v.author_id
+			WHERE v.visibility = 'public' AND v.story_expires_at IS NULL AND NOT u.private_account AND (v.images IS NULL OR v.sound_id IS NOT NULL) AND ${VideoVisibleSql('$1::bigint')}
+				AND ($4::bigint IS NULL OR coalesce(v.sound_id, v.id) = $4)
+			ORDER BY coalesce(v.sound_id, v.id), v.view_count DESC)
+		SELECT c.*, s.title, coalesce(su.display_name, c.display_name) AS author, coalesce(su.username, c.username) AS author_username, coalesce(su.avatar_name, c.avatar_name) AS author_avatar,
+			coalesce(s.duration, c.duration) AS sound_duration, s.file_name AS sound_file,
+			(SELECT count(*)::int FROM videos x WHERE c.music_id IN (x.id, x.sound_id)) AS uses
+		FROM Candidates c LEFT JOIN sounds s ON s.id = c.music_id LEFT JOIN users su ON su.id = s.author_id
+		WHERE coalesce(su.display_name, c.display_name) ILIKE $2 ESCAPE '\\' OR coalesce(su.username, c.username) ILIKE $2 ESCAPE '\\' OR $3 = ''
+		ORDER BY uses DESC, c.view_count DESC LIMIT 20`, [Viewer ?? null, Search, String(Query).trim(), Only ? Id(Only) : null])).rows;
+	return Rows.map(Row => ({ id: String(Row.music_id), title: Row.title ?? 'original sound', author: Row.author, username: Row.author_username, avatar: AvatarUrl({ avatar_name: Row.author_avatar }, Origin),
+		cover: `${Origin}/media/${Row.cover_name}`, duration: Row.sound_duration, uses: Row.uses, preview: `${Origin}/media/${Row.sound_file ?? Row.video_file}` }));
 }
 
 // Photo posts in the shape the client's photo carousel reads.
@@ -271,7 +300,7 @@ export function VideoShape(Row, Origin, Mentioned, Viewer) {
 			format: 'mp4', codecType: 'h264', bitrate: Math.round(Number(Row.bytes) * 8 / Row.duration), bitrateInfo: [],
 			encodeUserTag: '', videoQuality: 'normal', subtitleInfos: [], volumeInfo: { Loudness: -15, Peak: 0.8 },
 		},
-		music: { id: Row.id, title: 'Original sound', authorName: Row.display_name, original: true, duration: Row.duration,
+		music: Row.sound ? SoundShape(Row.sound, Origin) : { id: Row.id, title: 'Original sound', authorName: Row.display_name, original: true, duration: Row.duration,
 			playUrl: Row.images?.length ? `${Origin}/media/${Row.file_name}` : '', coverThumb: Author.avatarThumb, coverMedium: Author.avatarMedium, coverLarge: Author.avatarLarger },
 		textExtra: TextExtra, challenges: Challenges, repostList: Misc.reposts && Row.reposted && Viewer ? [{ secUid: Viewer, uid: Viewer }] : [], digged: Row.liked, collected: Row.saved, itemCommentStatus: Row.can_comment === false ? 1 : 0,
 		officalItem: false, secret: Row.visibility === 'only_me', privateItem: Row.visibility === 'only_me', shareEnabled: true, duetEnabled: false, stitchEnabled: false,
