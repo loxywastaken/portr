@@ -14,16 +14,16 @@
 .ZtokBannerHost .user-profile-header [data-e2e="user-avatar"],.ZtokBannerHost .user-profile-header [data-e2e="user-avatar"]>div,.ZtokBannerHost .user-profile-header [data-e2e="user-avatar"] [class*="--SpanAvatarContainer"]{width:clamp(84px,14vw,120px)!important;height:clamp(84px,14vw,120px)!important}
 .ZtokBannerHost .user-profile-header :is(h1,h2,h3,h4,p,strong,span,a,[data-e2e="user-bio"],[data-e2e="user-subtitle"],[data-e2e="user-title"]):not(button,button *){color:#fff!important;text-shadow:0 1px 3px rgba(0,0,0,.6)}
 .ZtokBannerHost .user-profile-header [data-e2e="user-subtitle"]{opacity:.8}
-.ZtokBannerHost .user-profile-header button:not([data-e2e="follow-button"]){background:rgba(255,255,255,.16)!important;color:#fff!important;border-color:transparent!important;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.ZtokBannerHost .user-profile-header button:not([data-e2e="follow-button"]){background:transparent!important;color:#fff!important;border-color:transparent!important;box-shadow:none!important}
 .ZtokBannerHost .user-profile-header button:not([data-e2e="follow-button"]) *{color:#fff!important;background:transparent!important}
 .ZtokBannerHost .user-profile-header button:not([data-e2e="follow-button"]) :is(svg,path){fill:currentColor}
-.ZtokBannerHost .user-profile-header button:not([data-e2e="follow-button"]):hover{background:rgba(255,255,255,.26)!important}
+.ZtokBannerHost .user-profile-header button:not([data-e2e="follow-button"]):hover{opacity:.75}
+.ZtokBannerHost .user-profile-header [class*="--DivButtonPanelWrapper"] :is([class*="tux-interaction-container"],[class*="tux-button"]):not([data-e2e="follow-button"],:has([data-e2e="follow-button"]),[data-e2e="follow-button"] *){background:transparent!important;box-shadow:none!important}
 @media (max-width:760px){
 	.ZtokBannerHost{border-radius:12px;padding:110px 14px 16px;margin-left:0;margin-right:0}
 	.ZtokBannerHost .user-profile-header{gap:12px}
 	.ZtokBannerHost .user-profile-header [data-e2e="user-avatar"]{align-self:flex-start;margin-top:-40px!important}
 }
-@media (prefers-reduced-transparency:reduce){.ZtokBannerHost .user-profile-header button{-webkit-backdrop-filter:none;backdrop-filter:none}}
 
 /* Edit profile → Banner row */
 .ZtokBannerEdit{display:flex;flex-direction:column;gap:10px;width:360px;max-width:100%}
