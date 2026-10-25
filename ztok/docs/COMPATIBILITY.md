@@ -9,6 +9,7 @@ ztok runs TikTok's own web client, so most of the job is answering its API calls
 - For You feed, video pages, playback and seeking (MP4 with range requests).
 - View counts that only go up when a video actually starts playing, not when it's preloaded, once per viewer every 6 hours.
 - ztok Studio (`/tiktokstudio`, its own app like TikTok Studio, since the archived web client doesn't include Studio): Home, Posts (edit caption, privacy, comments, category, pin, cover frame, delete), drafts and scheduled posts, Analytics with daily charts (post views, profile views, likes, comments, saves, reposts, followers gained and lost) and per-post analytics, a Comments manager, and Upload with preview, cover picker, privacy, comment settings, category, Share to story, Save draft and Schedule. Daily numbers are counted in UTC from the day Studio was added; shares and watch time aren't tracked.
+- Sounds: a public video's audio can be reused (`sound`, `sound_volume`, `original_volume` on uploads). A sound's music id is the id of the video it came from; its audio is copied to an `.m4a` the first time it's used. `/api/music/detail/` and `/api/music/item_list/` cover every video using a sound.
 - Photo posts (up to 35 photos) in the client's own carousel, with `imagePost` on items and a 3-second-per-photo slideshow MP4 as the video. The client loads Swiper's stylesheet separately and that file isn't in the archive, so ztok serves the layout rules it needs (`public/swiper.css`).
 - Explore with categories (picked at upload or guessed from hashtags), hashtag pages, related videos, music pages for original sounds, and search for people and videos. The Photos and LIVE search tabs stay empty.
 - Up to 3 pinned videos, and Latest, Popular and Oldest sorting on profiles.
@@ -44,7 +45,7 @@ ztok runs TikTok's own web client, so most of the job is answering its API calls
 
 ## Not done
 
-- LIVE, the shop and coins. The buttons are still there but don't do anything.
+- LIVE and the shop. The buttons are still there but don't do anything. Coins are ztok's own free coins (no purchases): Get Coins opens `/coin`, and gifts are sent from a Gift button ztok adds to posts.
 - Phone numbers and SMS, and signing in with Google, Apple, Facebook or a QR code.
 - Most of Settings beyond privacy, downloading your data and deleting your account.
 - Pinned comments (the web client doesn't have them), and photos or videos in group chats.
