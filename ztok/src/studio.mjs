@@ -1,9 +1,9 @@
 // ztok Studio data: drafts and scheduled posts, deleting posts, and the numbers behind Analytics.
 import { HttpError, Id } from './http.mjs';
-import { RemoveMedia } from './media.mjs';
+import { RemovePostMedia } from './media.mjs';
 import { RemovedSql } from './moderation.mjs';
 
-const Columns = 'author_id, description, file_name, cover_name, width, height, duration, bytes, visibility, comment_permission, category';
+const Columns = 'author_id, description, file_name, cover_name, width, height, duration, bytes, visibility, comment_permission, category, images';
 const Today = "(now() AT TIME ZONE 'UTC')::date";
 export const Ranges = [7, 28, 60, 365];
 export const Range = Value => Ranges.includes(Number(Value)) ? Number(Value) : 28;
@@ -39,19 +39,19 @@ export async function Draft(Pool, UserId, DraftId) {
 	return Row;
 }
 
-const RemoveFiles = (Config, Rows) => Promise.all(Rows.flatMap(Row => [Row.file_name, Row.cover_name, Row.download_name].filter(Boolean).map(Name => RemoveMedia(Config, Name).catch(() => {}))));
+const RemoveFiles = RemovePostMedia;
 export async function DeleteDraft(Pool, Config, UserId, DraftId) {
-	const Rows = (await Pool.query('DELETE FROM video_drafts WHERE id = $1 AND author_id = $2 RETURNING file_name, cover_name', [Id(DraftId), UserId])).rows;
+	const Rows = (await Pool.query('DELETE FROM video_drafts WHERE id = $1 AND author_id = $2 RETURNING file_name, cover_name, images', [Id(DraftId), UserId])).rows;
 	if (!Rows.length) throw new HttpError(404, 'DraftNotFound');
 	await RemoveFiles(Config, Rows);
 }
 export async function DeletePost(Pool, Config, UserId, VideoId) {
-	const Rows = (await Pool.query('DELETE FROM videos WHERE id = $1 AND author_id = $2 RETURNING file_name, cover_name, download_name', [Id(VideoId), UserId])).rows;
+	const Rows = (await Pool.query('DELETE FROM videos WHERE id = $1 AND author_id = $2 RETURNING file_name, cover_name, download_name, images', [Id(VideoId), UserId])).rows;
 	if (!Rows.length) throw new HttpError(404, 'VideoNotFound');
 	await RemoveFiles(Config, Rows);
 }
 export async function DeleteAllDrafts(Pool, Config, UserId) {
-	await RemoveFiles(Config, (await Pool.query('DELETE FROM video_drafts WHERE author_id = $1 RETURNING file_name, cover_name', [UserId])).rows);
+	await RemoveFiles(Config, (await Pool.query('DELETE FROM video_drafts WHERE author_id = $1 RETURNING file_name, cover_name, images', [UserId])).rows);
 }
 
 // Daily series for the last `Days` days and the same span before it, so every total can show its change.
@@ -103,7 +103,7 @@ export async function Posts(Pool, UserId, { query = '', visibility = '', sort = 
 	const Filters = ['v.author_id = $1', 'v.story_expires_at IS NULL', "v.description ILIKE $3 ESCAPE '\\'"];
 	if (['public', 'followers', 'friends', 'only_me'].includes(visibility)) { Values.push(visibility); Filters.push(`v.visibility = $${Values.length}`); }
 	Values.push(Math.min(Math.max(Number(limit) || 30, 1), 100), Math.max(0, Number(before) || 0));
-	return (await Pool.query(`SELECT v.id, v.description, v.cover_name, v.visibility, v.comment_permission, v.category, v.pinned_at, v.created_at, v.duration, v.view_count::int AS views,
+	return (await Pool.query(`SELECT v.id, v.description, v.cover_name, v.visibility, v.comment_permission, v.category, v.pinned_at, v.created_at, v.duration, v.view_count::int AS views, coalesce(jsonb_array_length(v.images), 0) AS photos,
 		(SELECT count(*)::int FROM likes l WHERE l.video_id = v.id) AS likes,
 		(SELECT count(*)::int FROM comments c WHERE c.video_id = v.id AND NOT ${RemovedSql('comment', 'c.id')}) AS comments,
 		(SELECT count(*)::int FROM favorites f WHERE f.video_id = v.id) AS saves,

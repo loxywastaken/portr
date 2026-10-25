@@ -122,13 +122,14 @@ const Server = createServer(async (Request, Response) => {
 		if (Path.startsWith('/media/')) {
 			RequireMethod(Request, ['GET', 'HEAD']);
 			const Name = Path.slice('/media/'.length);
-			const Video = (await Pool.query('SELECT id FROM videos WHERE file_name = $1 OR cover_name = $1', [Name])).rows[0];
+			const Video = (await Pool.query(`SELECT id FROM videos WHERE file_name = $1 OR cover_name = $1 OR (images IS NOT NULL AND images @> jsonb_build_array(jsonb_build_object('name', $1::text)))`, [Name])).rows[0];
 			if (Video) {
 				const Viewer_ = await Viewer(Pool, Request);
 				if (!(Url.searchParams.get('review') === '1' && Viewer_?.role === 'admin')) await AssertVideoVisible(Pool, Video.id, Viewer_?.id);
 			} else if (Name.endsWith('.mp4') || /^[a-f0-9-]{36}\.jpg$/.test(Name)) {
 				// Drafts and scheduled posts: only their author can load the files.
-				const Draft = (await Pool.query('SELECT author_id FROM video_drafts WHERE file_name = $1 OR cover_name = $1', [Name])).rows[0];
+				const Draft = (await Pool.query(`SELECT author_id FROM video_drafts WHERE file_name = $1 OR cover_name = $1 OR (images IS NOT NULL AND images @> jsonb_build_array(jsonb_build_object('name', $1::text)))
+					UNION ALL SELECT owner_id FROM photo_uploads WHERE name = $1`, [Name])).rows[0];
 				if (!Draft || Draft.author_id !== (await Viewer(Pool, Request))?.id) throw new HttpError(404, 'MediaNotFound');
 				return await ServeMedia(Request, Response, Config, Name, true);
 			}
@@ -182,7 +183,7 @@ const Server = createServer(async (Request, Response) => {
 			Response.writeHead(404, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
 			return Response.end(Request.method === 'HEAD' ? undefined : Html);
 		}
-		if (!/^\/(?:$|login(?:\/[a-z-]+)*\/?$|signup(?:\/[a-z-]+)*\/?$|explore\/?$|following\/?$|friends\/?$|messages\/?$|setting(?:\/[a-z-]+)*\/?$|search(?:\/user|\/video)?\/?$|@[^/]+(?:\/video\/\d+|\/collection\/[^/]+)?\/?$|music\/[^/]+\/?$|tag\/[^/]+\/?$)/.test(Path)) {
+		if (!/^\/(?:$|login(?:\/[a-z-]+)*\/?$|signup(?:\/[a-z-]+)*\/?$|explore\/?$|following\/?$|friends\/?$|messages\/?$|setting(?:\/[a-z-]+)*\/?$|search(?:\/user|\/video)?\/?$|@[^/]+(?:\/(?:video|photo)\/\d+|\/collection\/[^/]+)?\/?$|music\/[^/]+\/?$|tag\/[^/]+\/?$)/.test(Path)) {
 			if (!/text\/html/.test(Request.headers.accept ?? '')) throw new HttpError(404, 'NotImplemented');
 			Response.writeHead(302, { location: `/404?fromUrl=${encodeURI(Path)}` }); return Response.end();
 		}

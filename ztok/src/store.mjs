@@ -248,6 +248,10 @@ export async function Videos(Pool, Origin, { before, author, following, likedBy,
 	return { items: Rows.map(Row => VideoShape(Row, Origin, Mentioned, viewer)), hasMore: HasMore, cursor: order === 'popular' ? String(Offset + Rows.length) : Rows.at(-1)?.id ?? '0' };
 }
 
+// Photo posts in the shape the client's photo carousel reads.
+const PhotoImage = (Image, Origin) => ({ imageURL: { urlList: [`${Origin}/media/${Image.name}`] }, imageWidth: Image.width, imageHeight: Image.height });
+export const PhotoPost = (Images, Origin) => ({ images: Images.map(Image => PhotoImage(Image, Origin)), cover: PhotoImage(Images[0], Origin), shareCover: PhotoImage(Images[0], Origin), title: '' });
+
 export function VideoShape(Row, Origin, Mentioned, Viewer) {
 	const Author = UserShape({ ...Row, id: Row.author_id }, Origin);
 	const Stats = { diggCount: Row.likes, commentCount: Row.comments, collectCount: Row.favorites, shareCount: 0, playCount: Number(Row.view_count ?? 0), repostCount: Misc.reposts ? Row.reposts ?? 0 : 0 };
@@ -268,10 +272,11 @@ export function VideoShape(Row, Origin, Mentioned, Viewer) {
 			encodeUserTag: '', videoQuality: 'normal', subtitleInfos: [], volumeInfo: { Loudness: -15, Peak: 0.8 },
 		},
 		music: { id: Row.id, title: 'Original sound', authorName: Row.display_name, original: true, duration: Row.duration,
-			playUrl: '', coverThumb: Author.avatarThumb, coverMedium: Author.avatarMedium, coverLarge: Author.avatarLarger },
+			playUrl: Row.images?.length ? `${Origin}/media/${Row.file_name}` : '', coverThumb: Author.avatarThumb, coverMedium: Author.avatarMedium, coverLarge: Author.avatarLarger },
 		textExtra: TextExtra, challenges: Challenges, repostList: Misc.reposts && Row.reposted && Viewer ? [{ secUid: Viewer, uid: Viewer }] : [], digged: Row.liked, collected: Row.saved, itemCommentStatus: Row.can_comment === false ? 1 : 0,
 		officalItem: false, secret: Row.visibility === 'only_me', privateItem: Row.visibility === 'only_me', shareEnabled: true, duetEnabled: false, stitchEnabled: false,
 		authorPrivate: Boolean(Row.private_account), downloadSetting: Row.allow_downloads === false ? 3 : 0, itemMute: false,
+		...(Row.images?.length ? { imagePost: PhotoPost(Row.images, Origin) } : {}),
 		...(Row.story_expires_at ? { story: { Viewed: Boolean(Row.story_viewed), ExpiredAt: String(Math.floor(new Date(Row.story_expires_at).getTime() / 1000)) } } : {}),
 		forFriend: Row.visibility === 'friends', originalItem: false, isAd: false, item_control: {}, contents: [{ desc: Row.description, textExtra: TextExtra }],
 	};

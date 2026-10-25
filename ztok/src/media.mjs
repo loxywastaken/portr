@@ -36,19 +36,70 @@ export async function ImportVideo(Pool, Config, UserId, Input, Description = '',
 	PostSettings(Settings.visibility, Settings.comment_permission);
 	if (typeof Description !== 'string' || Description.length > 2200) throw new HttpError(400, 'DescriptionTooLong');
 	const Video = await TranscodeVideo(Config, Input, Config.MaxVideoBytes, Config.MaxVideoSeconds, Settings.coverTime);
+	return InsertPost(Pool, Config, UserId, Video, Description, Settings);
+}
+
+// Saves a processed video (or photo slideshow) as a post, story, draft or scheduled post.
+// If saving fails, its files are removed so nothing is left behind.
+export async function InsertPost(Pool, Config, UserId, Video, Description, Settings) {
+	const Images = Video.Images ? JSON.stringify(Video.Images) : null;
 	try {
 		if (Settings.draft) {
-			const Draft = await Pool.query('INSERT INTO video_drafts(author_id, description, file_name, cover_name, width, height, duration, bytes, visibility, comment_permission, category, publish_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id',
-				[UserId, Description, Video.VideoName, Video.CoverName, Video.Width, Video.Height, Video.Duration, Video.Bytes, Settings.visibility, Settings.comment_permission, Settings.category ?? GuessCategory(Description), Settings.publishAt ?? null]);
+			const Draft = await Pool.query('INSERT INTO video_drafts(author_id, description, file_name, cover_name, width, height, duration, bytes, visibility, comment_permission, category, publish_at, images) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id',
+				[UserId, Description, Video.VideoName, Video.CoverName, Video.Width, Video.Height, Video.Duration, Video.Bytes, Settings.visibility, Settings.comment_permission, Settings.category ?? GuessCategory(Description), Settings.publishAt ?? null, Images]);
 			return { draft: Draft.rows[0].id };
 		}
-		const Result = await Pool.query("INSERT INTO videos(author_id, description, file_name, cover_name, width, height, duration, bytes, visibility, comment_permission, category, story_expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, CASE WHEN $12 THEN now() + interval '24 hours' END) RETURNING id",
-			[UserId, Description, Video.VideoName, Video.CoverName, Video.Width, Video.Height, Video.Duration, Video.Bytes, Settings.visibility, Settings.comment_permission, Settings.story ? 0 : Settings.category ?? GuessCategory(Description), Boolean(Settings.story)]);
+		const Result = await Pool.query("INSERT INTO videos(author_id, description, file_name, cover_name, width, height, duration, bytes, visibility, comment_permission, category, story_expires_at, images) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, CASE WHEN $12 THEN now() + interval '24 hours' END, $13) RETURNING id",
+			[UserId, Description, Video.VideoName, Video.CoverName, Video.Width, Video.Height, Video.Duration, Video.Bytes, Settings.visibility, Settings.comment_permission, Settings.story ? 0 : Settings.category ?? GuessCategory(Description), Boolean(Settings.story), Images]);
 		return Result.rows[0].id;
 	} catch (Error) {
-		await Promise.allSettled([RemoveMedia(Config, Video.VideoName), RemoveMedia(Config, Video.CoverName)]);
+		await RemovePostMedia(Config, [{ file_name: Video.VideoName, cover_name: Video.CoverName, images: Video.Images }]);
 		throw Error;
 	}
+}
+
+// Every file a post owns: the video (or slideshow), cover, watermarked download, and photos.
+export const PostMediaNames = Row => [Row.file_name, Row.cover_name, Row.download_name, ...(Row.images ?? []).map(Image => Image.name)].filter(Boolean);
+export const RemoveMediaNames = (Config, Names) => Promise.all(Names.map(Name => RemoveMedia(Config, Name).catch(() => {})));
+export async function RemovePostMedia(Config, Rows) {
+	await Promise.all(Rows.flatMap(PostMediaNames).map(Name => RemoveMedia(Config, Name).catch(() => {})));
+}
+
+// Photo posts. Each photo is re-encoded (which drops metadata such as location) to fit 1080x1920.
+export async function SavePhoto(Config, Bytes) {
+	await mkdir(join(Config.MediaDir, '.incoming'), { recursive: true });
+	const Input = join(Config.MediaDir, '.incoming', randomUUID());
+	const Whitelist = ['-protocol_whitelist', 'file', '-format_whitelist', 'png_pipe,jpeg_pipe,webp_pipe'];
+	const Name = `${randomUUID()}.jpg`, File = join(Config.MediaDir, Name);
+	try {
+		await writeFile(Input, Bytes, { flag: 'wx', mode: 0o600 });
+		const Track = JSON.parse(await Run(Config.FFprobe, ['-v', 'error', ...Whitelist, '-show_streams', '-of', 'json', Input], 'InvalidImage')).streams?.find(Track => Track.codec_type === 'video');
+		if (!Track || Track.width > 12000 || Track.height > 12000 || Track.width * Track.height > 80e6) throw new HttpError(422, 'InvalidImage');
+		await Run(Config.FFmpeg, ['-hide_banner', '-loglevel', 'error', '-nostdin', ...Whitelist, '-i', Input, '-frames:v', '1', '-map_metadata', '-1',
+			'-vf', "scale='min(1080,iw)':'min(1920,ih)':force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2", '-q:v', '3', '-threads', '1', '-n', File], 'InvalidImage');
+		const Output = JSON.parse(await Run(Config.FFprobe, ['-v', 'error', '-show_streams', '-of', 'json', File], 'InvalidImage')).streams[0];
+		return { name: Name, width: Output.width, height: Output.height };
+	} catch (Error) { await rm(File, { force: true }); throw Error; } finally { await rm(Input, { force: true }); }
+}
+
+// The slideshow every photo post carries: each photo for PhotoSeconds on black at 720x1280, with a short
+// crossfade, plus a silent audio track so every player treats it like any other video.
+export const PhotoSeconds = 3;
+export async function PhotoSlideshow(Config, Images) {
+	const Key = randomUUID(), VideoName = `${Key}.mp4`, CoverName = `${Key}.jpg`;
+	const Video = join(Config.MediaDir, VideoName), Cover = join(Config.MediaDir, CoverName), Fade = 0.35;
+	const Inputs = Images.flatMap(Image => ['-loop', '1', '-framerate', '24', '-t', String(PhotoSeconds), '-i', join(Config.MediaDir, Image.name)]);
+	const Scaled = Images.map((_, Index) => `[${Index}:v]scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2:black,setsar=1,format=yuv420p,fps=24[s${Index}]`);
+	let Last = 's0';
+	const Chain = Images.slice(1).map((_, Index) => { const Out = `x${Index + 1}`, Step = `[${Last}][s${Index + 1}]xfade=transition=fade:duration=${Fade}:offset=${((Index + 1) * (PhotoSeconds - Fade)).toFixed(2)}[${Out}]`; Last = Out; return Step; });
+	const Duration = Images.length * PhotoSeconds - (Images.length - 1) * Fade;
+	try {
+		await Run(Config.FFmpeg, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-protocol_whitelist', 'file', ...Inputs, '-f', 'lavfi', '-t', Duration.toFixed(2), '-i', 'anullsrc=r=44100:cl=stereo',
+			'-filter_complex', [...Scaled, ...Chain].join(';'), '-map', `[${Last}]`, '-map', `${Images.length}:a`, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '24', '-pix_fmt', 'yuv420p',
+			'-c:a', 'aac', '-b:a', '64k', '-shortest', '-movflags', '+faststart', '-threads', '2', '-n', Video], 'InvalidImage', Math.max(180000, Images.length * 20000));
+		await Run(Config.FFmpeg, ['-hide_banner', '-loglevel', 'error', '-nostdin', '-i', join(Config.MediaDir, Images[0].name), '-frames:v', '1', '-q:v', '3', '-threads', '1', '-n', Cover], 'InvalidImage');
+		return { VideoName, CoverName, Width: 720, Height: 1280, Duration, Bytes: (await stat(Video)).size, Images };
+	} catch (Error) { await Promise.allSettled([rm(Video, { force: true }), rm(Cover, { force: true })]); throw Error; }
 }
 
 export async function TranscodeVideo(Config, Input, MaxBytes, MaxSeconds, CoverTime = 0) {
@@ -231,8 +282,8 @@ export async function DownloadCopy(Pool, Config, Row, Background = false) {
 }
 
 export async function SweepStories(Pool, Config) {
-	const Rows = (await Pool.query("DELETE FROM videos WHERE story_expires_at < now() - interval '1 day' RETURNING file_name, cover_name, download_name")).rows;
-	for (const Row of Rows) await Promise.all([RemoveMedia(Config, Row.file_name), RemoveMedia(Config, Row.cover_name), Row.download_name && RemoveMedia(Config, Row.download_name)]);
+	await RemovePostMedia(Config, (await Pool.query("DELETE FROM videos WHERE story_expires_at < now() - interval '1 day' RETURNING file_name, cover_name, download_name, images")).rows);
+	await RemoveMediaNames(Config, (await Pool.query("DELETE FROM photo_uploads WHERE created_at < now() - interval '1 day' RETURNING name")).rows.map(Row => Row.name));
 }
 
 let Warming = null, WarmAgain = false;
