@@ -1,8 +1,8 @@
 import { AssertVideoVisible, PostSettings, SetPrivateAccount } from '../privacy.mjs';
 import { rm } from 'node:fs/promises';
 import { HttpError, Id, Json, ReadBody, ReadRaw, RequireMethod } from '../http.mjs';
-import { CreateUser, Login, RequireCsrf, SessionCookie, ClientInfo, RecordEvent } from '../auth.mjs';
-import { UserShape, UserStats, FindUser, Videos, SetRelation, AddComment, SetBlock } from '../store.mjs';
+import { CreateUser, Login, RequireCsrf, SessionCookie, ClientInfo, RecordEvent, AccountsCookie, CookieValue, DeviceAccounts, DeviceTokens } from '../auth.mjs';
+import { AvatarUrl, UserShape, UserStats, FindUser, Videos, SetRelation, AddComment, SetBlock } from '../store.mjs';
 import { DownloadCopy, ImportVideo, ReceiveVideo, RemoveMedia, SaveBanner, ServeMedia, WarmDownloads } from '../media.mjs';
 import { AssertAllowed, RemovedSql } from '../moderation.mjs';
 import { BadgeCatalog, BadgeSvg, PrideFlag, PublicBadges } from '../badges.mjs';
@@ -45,7 +45,8 @@ export async function Api(Context) {
 		const Names = [...new Set((Url.searchParams.get('users') ?? '').split(','))];
 		if (Names.length > 50 || Names.some(Name => !/^[a-z0-9_]{3,24}$/.test(Name))) throw new HttpError(400, 'InvalidUsernames');
 		const Rows = (await Pool.query('SELECT username, display_name, pride_flag, user_badges, verified, avatar_decoration, name_style, nameplate, banner_name FROM users WHERE username = ANY($1::text[]) AND suspended_at IS NULL', [Names])).rows;
-		Json(Response, { banners: Object.fromEntries(Rows.map(Row => [Row.username, Row.banner_name ? `${Config.Origin}/media/${Row.banner_name}` : null])), users: Object.fromEntries(Rows.map(Row => [Row.username, PublicBadges(Row)])), verified: Misc.verifiedBadges ? Rows.filter(Row => Row.verified).map(Row => Row.username) : [], decorations: Object.fromEntries(Rows.map(Row => [Row.username, PublicDecoration(Row)]).filter(Pair => Pair[1])),
+		const Banned = (await Pool.query('SELECT username FROM users WHERE username = ANY($1::text[]) AND suspended_at IS NOT NULL AND deactivated_at IS NULL', [Names])).rows.map(Row => Row.username);
+		Json(Response, { banned: Banned, banners: Object.fromEntries(Rows.map(Row => [Row.username, Row.banner_name ? `${Config.Origin}/media/${Row.banner_name}` : null])), users: Object.fromEntries(Rows.map(Row => [Row.username, PublicBadges(Row)])), verified: Misc.verifiedBadges ? Rows.filter(Row => Row.verified).map(Row => Row.username) : [], decorations: Object.fromEntries(Rows.map(Row => [Row.username, PublicDecoration(Row)]).filter(Pair => Pair[1])),
 			styles: Object.fromEntries(Rows.filter(Row => PublicNameStyle(Row)).map(Row => [Row.username, { ...PublicNameStyle(Row), name: Row.display_name }])), nameplates: Object.fromEntries(Rows.map(Row => [Row.username, PublicNameplate(Row)]).filter(Pair => Pair[1])) }); return true;
 	}
 	if (Path === '/_ztok/nameplates/catalog') {
@@ -146,6 +147,30 @@ export async function Api(Context) {
 		RequireMethod(Request, ['GET']);
 		Json(Response, { name: Config.Name, description: Config.Description, version: '0.1.0', registration: Config.Registration, origin: Config.Origin, source: Config.SourceUrl });
 		return true;
+	}
+	if (Path === '/api/v1/accounts' || Path === '/api/v1/accounts/add' || Path === '/api/v1/accounts/switch') {
+		const Current = User ? CookieValue(Request, 'ztok_session') : '';
+		const Saved = (await DeviceAccounts(Pool, DeviceTokens(Request))).filter(Entry => Entry.Row.id !== User?.id);
+		const Shape = (Row, Here) => ({ username: Row.username, displayName: Row.display_name, avatar: AvatarUrl(Row, Config.Origin), current: Here });
+		if (Path === '/api/v1/accounts') {
+			RequireMethod(Request, ['GET']);
+			Response.setHeader('set-cookie', AccountsCookie(Config, Saved.map(Entry => Entry.Token)));
+			Json(Response, { accounts: [...(User ? [Shape(User, true)] : []), ...Saved.map(Entry => Shape(Entry.Row, false))], max: 5 }); return true;
+		}
+		RequireMethod(Request, ['POST']);
+		if (User) RequireCsrf(Request, User);
+		if (Path === '/api/v1/accounts/add') {
+			if (!User) throw new HttpError(401, 'NotLoggedIn');
+			if (Saved.length >= 4) throw new HttpError(409, 'TooManyAccounts');
+			Response.setHeader('set-cookie', [AccountsCookie(Config, [Current, ...Saved.map(Entry => Entry.Token)]), SessionCookie(Config, '', true)]);
+			Json(Response, { ok: true }); return true;
+		}
+		const Wanted = String((await ReadBody(Request, 1024)).username ?? '').toLowerCase();
+		const Target = Saved.find(Entry => Entry.Row.username === Wanted);
+		if (!Target) throw new HttpError(404, 'AccountNotOnThisDevice');
+		const Rest = [...(User ? [Current] : []), ...Saved.filter(Entry => Entry !== Target).map(Entry => Entry.Token)];
+		Response.setHeader('set-cookie', [SessionCookie(Config, Target.Token), AccountsCookie(Config, Rest)]);
+		Json(Response, { ok: true, username: Target.Row.username }); return true;
 	}
 	if (Path === '/api/v1/session') {
 		if (Request.method === 'GET') { Json(Response, { user: User ? UserShape(User, Config.Origin) : null, csrfToken: User?.csrf_token ?? null }); return true; }
