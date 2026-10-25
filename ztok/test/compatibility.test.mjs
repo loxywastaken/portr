@@ -16,6 +16,7 @@ import { DecodePassportValue } from '../src/routes/passport.mjs';
 import { Proto } from '../src/routes/im.mjs';
 import { BackfillCategories, Category, GuessCategory } from '../src/categories.mjs';
 import { DeleteExpiredAccounts } from '../src/accounts.mjs';
+import { PublishDue } from '../src/studio.mjs';
 import { HashIp, KeyRecord, NewSecurityKey } from '../src/ips.mjs';
 import { request as HttpRequest } from 'node:http';
 import { createServer } from 'node:net';
@@ -1458,7 +1459,7 @@ test('private accounts, follow requests, post audiences and comment permissions 
 	await Stop(); await Start();
 	assert.equal((await Detail(P)).status, 404); assert.equal((await (await Call('/api/v1/session', 'GET', undefined, H)).json()).user.privateAccount, true);
 	assert.equal((await Call('/upload', 'GET', undefined, H)).status, 200);
-	assert.ok((await (await Call('/account/posts', 'GET', undefined, H)).text()).includes(`/account/posts/${Id_}`));
+	assert.ok((await (await Call('/account/posts', 'GET', undefined, H)).text()).includes(`/tiktokstudio/content/${Id_}`));
 	assert.equal((await Call(`/account/posts/${Id_}`, 'GET', undefined, O)).status, 404);
 	const Input = await readFile(join(Directory, 'input.mp4'));
 	const Upload = await fetch(`${Origin}/api/v1/videos?visibility=only_me&comments=none&description=Private%20upload`, { method: 'POST', headers: { ...H, 'content-type': 'video/mp4' }, body: Input });
@@ -2289,4 +2290,82 @@ test('misc switches turn ztok features off and back on without a restart', async
 	assert.equal((await Get('/api/user/detail/?uniqueId=owner')).userInfo.user.verified, true);
 	assert.equal((await Get('/api/challenge/detail/?challengeName=ztok')).statusCode, 0);
 	await Pool.query('UPDATE users SET verified = false WHERE id = $1', [Owner.id]);
+});
+
+test('Studio: drafts, scheduled posts, analytics counters, comments manager and deleting posts', async () => {
+	const Creator = await CreateUser(Pool, { username: 'studio_kitten', displayName: 'Studio Kitten', password: Password }, 'closed', true);
+	const Fan = await CreateUser(Pool, { username: 'studio_fan', displayName: 'Studio Fan', password: Password }, 'closed', true);
+	const Sign = async Name => { const Signed = await Login(Pool, Name, Password); return { cookie: `ztok_session=${Signed.Token}`, 'x-csrf-token': Signed.Csrf, csrf: Signed.Csrf }; };
+	const Me = await Sign('studio_kitten'), Them = await Sign('studio_fan');
+	const Headers = As => ({ cookie: As.cookie, 'x-csrf-token': As['x-csrf-token'] });
+	const Input = await readFile(join(Directory, 'input.mp4'));
+	const Upload = Query => fetch(`${Origin}/api/v1/videos?${new URLSearchParams(Query)}`, { method: 'POST', headers: { ...Headers(Me), 'content-type': 'video/mp4' }, body: Input });
+	const Form = (Path, As, Fields) => fetch(Origin + Path, { method: 'POST', redirect: 'manual', headers: { cookie: As.cookie, 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ csrf: As.csrf, ...Fields }) });
+
+	assert.equal((await fetch(Origin + '/tiktokstudio', { redirect: 'manual' })).status, 303);
+	for (const Path of ['/tiktokstudio', '/tiktokstudio/content', '/tiktokstudio/analytics', '/tiktokstudio/analytics?tab=followers', '/tiktokstudio/comments', '/tiktokstudio/upload', '/upload']) assert.equal((await Call(Path, 'GET', undefined, Headers(Me))).status, 200, Path);
+	assert.equal((await fetch(Origin + '/tiktokstudio', { method: 'POST', headers: Headers(Me) })).status, 405);
+
+	// A draft stays out of every feed and only its author can load its files.
+	const Drafted = await Upload({ description: 'Draft #cats', mode: 'draft', cover_time: '0.5' });
+	assert.equal(Drafted.status, 201); const DraftId = (await Drafted.json()).draft;
+	const Draft = (await Pool.query('SELECT * FROM video_drafts WHERE id = $1', [DraftId])).rows[0];
+	assert.equal(Draft.publish_at, null); assert.equal((await Pool.query('SELECT 1 FROM videos WHERE author_id = $1', [Creator.id])).rowCount, 0);
+	assert.equal((await Call(`/media/${Draft.cover_name}`, 'HEAD', undefined, Headers(Me))).status, 200);
+	assert.equal((await Call(`/media/${Draft.file_name}`, 'HEAD', undefined, Headers(Them))).status, 404);
+	assert.equal((await Call(`/tiktokstudio/drafts/${DraftId}`, 'GET', undefined, Headers(Them))).status, 404);
+
+	// Scheduling: 15 minutes to 30 days ahead, published by the scheduler once due.
+	assert.equal((await (await Upload({ mode: 'schedule', publish_at: new Date(Date.now() + 60000).toISOString() })).json()).error, 'ScheduleTooSoon');
+	assert.equal((await Upload({ mode: 'draft', story: '1' })).status, 400);
+	const Scheduled = await Upload({ description: 'Later', mode: 'schedule', publish_at: new Date(Date.now() + 3600000).toISOString() });
+	assert.equal(Scheduled.status, 201); const Later = await Scheduled.json(); assert.equal(Later.scheduled, true);
+	assert.equal((await Form(`/tiktokstudio/drafts/${Later.draft}`, Me, { action: 'save', description: 'Later', visibility: 'public', comments: 'default', category: '', when: 'schedule', publish_at: new Date(Date.now() + 60000).toISOString() })).headers.get('location'), `/tiktokstudio/drafts/${Later.draft}?error=ScheduleTooSoon`);
+	await Pool.query("UPDATE video_drafts SET publish_at = now() - interval '1 second' WHERE id = $1", [Later.draft]);
+	const [Published] = await PublishDue(Pool);
+	assert.equal(Published.author_id, Creator.id); assert.equal((await Pool.query('SELECT 1 FROM video_drafts WHERE id = $1', [Later.draft])).rowCount, 0);
+
+	// Post now from the draft editor, with an edited caption.
+	const Posting = await Form(`/tiktokstudio/drafts/${DraftId}`, Me, { action: 'publish', description: 'Now live #cats', visibility: 'public', comments: 'default', category: '' });
+	const VideoId_ = /\/tiktokstudio\/content\/(\d+)\?saved=published$/.exec(Posting.headers.get('location'))[1];
+	assert.equal((await Pool.query('SELECT description FROM videos WHERE id = $1', [VideoId_])).rows[0].description, 'Now live #cats');
+
+	// Analytics counters: daily views, profile views (not your own), unfollows.
+	assert.equal((await Call(`/api/item/detail/?itemId=${VideoId_}`, 'GET', undefined, Headers(Them))).status, 200);
+	await Call(`/api/user/detail/?uniqueId=studio_kitten`, 'GET', undefined, Headers(Them));
+	await Call(`/api/user/detail/?uniqueId=studio_kitten`, 'GET', undefined, Headers(Them));
+	await Call(`/api/user/detail/?uniqueId=studio_kitten`, 'GET', undefined, Headers(Me));
+	await new Promise(Resolve => setTimeout(Resolve, 200));
+	assert.equal((await Pool.query('SELECT profile_views FROM user_daily_stats WHERE user_id = $1', [Creator.id])).rows[0].profile_views, 1);
+	assert.equal((await Call('/api/commit/follow/user/?type=1&user_id=' + Creator.id, 'POST', undefined, Headers(Them))).status, 200);
+	assert.equal((await Call('/api/commit/follow/user/?type=0&user_id=' + Creator.id, 'POST', undefined, Headers(Them))).status, 200);
+	assert.equal((await Pool.query('SELECT unfollows FROM user_daily_stats WHERE user_id = $1', [Creator.id])).rows[0].unfollows, 1);
+	const { RecordView } = await import('../src/store.mjs');
+	await RecordView(Pool, VideoId_, 'u:studio-test');
+	assert.equal((await Pool.query('SELECT sum(views)::int AS views FROM video_daily_stats WHERE video_id = $1', [VideoId_])).rows[0].views >= 1, true);
+	const Page = await (await Call(`/tiktokstudio/analytics/${VideoId_}`, 'GET', undefined, Headers(Me))).text();
+	assert.ok(Page.includes('class="chart"') && Page.includes('Now live #cats'));
+	assert.equal((await Call(`/tiktokstudio/analytics/${VideoId_}`, 'GET', undefined, Headers(Them))).status, 404);
+
+	// Comments manager: reply, like, delete, and only on your own posts.
+	const Comment = await (await Call(`/api/comment/publish/?aweme_id=${VideoId_}&text=${encodeURIComponent('so cute')}&reply_id=0`, 'POST', undefined, Headers(Them))).json();
+	const Cid = Comment.comment.cid;
+	assert.ok((await (await Call('/tiktokstudio/comments?filter=unreplied', 'GET', undefined, Headers(Me))).text()).includes(`id="c${Cid}"`));
+	assert.equal((await Form('/tiktokstudio/comments', Me, { action: 'reply', comment: Cid, text: 'thank you!' })).status, 303);
+	assert.ok(!(await (await Call('/tiktokstudio/comments?filter=unreplied', 'GET', undefined, Headers(Me))).text()).includes(`id="c${Cid}"`));
+	await Form('/tiktokstudio/comments', Me, { action: 'like', comment: Cid });
+	assert.equal((await Pool.query('SELECT 1 FROM comment_likes WHERE comment_id = $1 AND user_id = $2', [Cid, Creator.id])).rowCount, 1);
+	assert.equal((await Form('/tiktokstudio/comments', Them, { action: 'delete', comment: Cid })).headers.get('location'), '/tiktokstudio/comments?filter=all&q=&post=&error=CommentNotFound');
+	await Form('/tiktokstudio/comments', Me, { action: 'delete', comment: Cid });
+	assert.equal((await Pool.query('SELECT 1 FROM comments WHERE id = $1', [Cid])).rowCount, 0);
+
+	// New cover, then delete the post and its files.
+	const OldCover = (await Pool.query('SELECT cover_name FROM videos WHERE id = $1', [VideoId_])).rows[0].cover_name;
+	assert.equal((await Form(`/tiktokstudio/content/${VideoId_}`, Me, { action: 'cover', cover_time: '0.4' })).headers.get('location'), `/tiktokstudio/content/${VideoId_}?saved=cover`);
+	const Row = (await Pool.query('SELECT file_name, cover_name FROM videos WHERE id = $1', [VideoId_])).rows[0];
+	assert.notEqual(Row.cover_name, OldCover); assert.ok(!(await readdir(Directory)).includes(OldCover));
+	assert.equal((await Form(`/tiktokstudio/content/${VideoId_}`, Them, { action: 'delete' })).status, 404);
+	assert.equal((await Form(`/tiktokstudio/content/${VideoId_}`, Me, { action: 'delete' })).headers.get('location'), '/tiktokstudio/content?saved=deleted');
+	assert.equal((await Pool.query('SELECT 1 FROM videos WHERE id = $1', [VideoId_])).rowCount, 0);
+	const Files = await readdir(Directory); assert.ok(!Files.includes(Row.file_name) && !Files.includes(Row.cover_name));
 });
