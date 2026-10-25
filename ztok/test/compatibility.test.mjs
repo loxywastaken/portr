@@ -2369,3 +2369,45 @@ test('Studio: drafts, scheduled posts, analytics counters, comments manager and 
 	assert.equal((await Pool.query('SELECT 1 FROM videos WHERE id = $1', [VideoId_])).rowCount, 0);
 	const Files = await readdir(Directory); assert.ok(!Files.includes(Row.file_name) && !Files.includes(Row.cover_name));
 });
+
+test('photo posts: staged photos become a carousel post with a slideshow, only the owner sees staged photos', async () => {
+	const Poster = await CreateUser(Pool, { username: 'photo_kitten', displayName: 'Photo Kitten', password: Password }, 'closed', true);
+	await CreateUser(Pool, { username: 'photo_peer', displayName: 'Photo Peer', password: Password }, 'closed', true);
+	const Sign = async Name => { const Signed = await Login(Pool, Name, Password); return { cookie: `ztok_session=${Signed.Token}`, 'x-csrf-token': Signed.Csrf }; };
+	const Me = await Sign('photo_kitten'), Them = await Sign('photo_peer');
+	const Picture = join(Directory, 'photo.png');
+	assert.equal(spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=320x200:rate=1', '-frames:v', '1', '-y', Picture]).status, 0);
+	const Bytes = await readFile(Picture);
+	const Stage = (Headers = Me, Type = 'image/png', Body = Bytes) => fetch(`${Origin}/api/v1/photos/stage`, { method: 'POST', headers: { ...Headers, 'content-type': Type }, body: Body });
+	assert.equal((await Stage(Me, 'text/plain')).status, 415);
+	assert.equal((await (await Stage(Me, 'image/png', Buffer.from('not an image'))).json()).error, 'InvalidImage');
+	const Staged = [];
+	for (let Index = 0; Index < 2; Index++) { const Response = await Stage(); assert.equal(Response.status, 201); Staged.push(await Response.json()); }
+	assert.deepEqual([Staged[0].width, Staged[0].height], [320, 200]);
+	assert.equal((await Call(`/media/${Staged[0].name}`, 'HEAD', undefined, Me)).status, 200);
+	assert.equal((await Call(`/media/${Staged[0].name}`, 'HEAD', undefined, Them)).status, 404);
+	const Post = (Body, Headers = Me) => Call('/api/v1/photos', 'POST', Body, Headers);
+	assert.equal((await Post({ images: [Staged[0].name] }, Them)).status, 400);
+	assert.equal((await Post({ images: [Staged[0].name, Staged[0].name] })).status, 400);
+	assert.equal((await Post({ images: [] })).status, 400);
+	const Made = await Post({ images: [Staged[1].name, Staged[0].name], description: 'Two photos #dump' });
+	assert.equal(Made.status, 201); const PostId = (await Made.json()).id;
+	assert.equal((await Pool.query('SELECT count(*)::int AS n FROM photo_uploads WHERE owner_id = $1', [Poster.id])).rows[0].n, 0);
+	const Item = (await (await Call(`/api/item/detail/?itemId=${PostId}`, 'GET', undefined, Them)).json()).itemInfo.itemStruct;
+	assert.deepEqual(Item.imagePost.images.map(Image => Image.imageURL.urlList[0].split('/').pop()), [Staged[1].name, Staged[0].name]);
+	assert.equal(Item.imagePost.images[0].imageWidth, 320); assert.ok(Item.video.playAddr.endsWith('.mp4')); assert.equal(Item.music.playUrl, Item.video.playAddr);
+	assert.equal((await Call(`/media/${Staged[0].name}`, 'HEAD', undefined, Them)).status, 200);
+	assert.equal((await fetch(`${Origin}/@photo_kitten/photo/${PostId}`, { headers: { accept: 'text/html' }, redirect: 'manual' })).status, 200);
+	const Row = (await Pool.query('SELECT duration, images FROM videos WHERE id = $1', [PostId])).rows[0];
+	assert.ok(Row.duration > 5 && Row.duration < 6); assert.equal(Row.images.length, 2);
+	assert.ok((await (await Call(`/tiktokstudio/content/${PostId}`, 'GET', undefined, Me)).text()).includes('2 photos.'));
+	// Drafts of photos, then deleting removes every file.
+	const Third = await (await Stage()).json();
+	const Drafted = await (await Post({ images: [Third.name], mode: 'draft' })).json();
+	assert.ok(Drafted.draft); assert.equal((await Call(`/media/${Third.name}`, 'HEAD', undefined, Them)).status, 404);
+	const Files = (await Pool.query('SELECT file_name, cover_name FROM videos WHERE id = $1', [PostId])).rows[0];
+	await fetch(`${Origin}/tiktokstudio/content/${PostId}`, { method: 'POST', redirect: 'manual', headers: { cookie: Me.cookie, 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ csrf: Me['x-csrf-token'], action: 'delete' }) });
+	const Left = await readdir(Directory);
+	for (const Name of [Files.file_name, Files.cover_name, Staged[0].name, Staged[1].name]) assert.ok(!Left.includes(Name), Name);
+	assert.ok(Left.includes(Third.name));
+});
