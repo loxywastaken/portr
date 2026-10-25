@@ -2,6 +2,7 @@
 
 ## 0.1.0
 
+- LIVE: go LIVE from your camera or screen in Studio → LIVE, right in the browser. Viewers watch at `/@user/live` (LIVE in the sidebar lists everyone who's LIVE, and profiles show a LIVE button) with chat, likes, gifts and a viewer count. The server turns the stream into HLS with ffmpeg; nothing is recorded, and up to `MAX_LIVE_STREAMS` (default 2) can run at once.
 - Sounds: use any public video's sound in your own video or photo post, from Use sound on a sound page or Add sound in Studio → Upload, with volume sliders for the added and original sound. Sound pages list every post using that sound, and posts show "original sound - Creator" for the sound they used.
 - Free coins and gifts: a 1,000-coin welcome bonus and 100 free coins a day from Coins & gifts (Get Coins in the top bar, or Studio). Send gifts from the new Gift button on posts; each one shows on the post as a comment from the sender. Creators see gifts received, top gifters and gift coins per post in Studio. Coins can't be bought or cashed out.
 - Photo posts: post up to 35 photos from Studio → Upload → Photos (reorder by dragging or with the arrows). They show in TikTok's own photo carousel with dots and arrows in the feed, on profiles and on the post page (`/@user/photo/…`), and as posts, stories, drafts or scheduled posts. Each also gets a slideshow video so downloads and everything else that plays videos keeps working.
