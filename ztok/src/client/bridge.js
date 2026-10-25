@@ -184,7 +184,8 @@
 		if (Target.id === 'header-login-button' || Target.id === 'top-right-action-bar-login-button' || Target.matches('button[class*="SquareTUXButton"][aria-label="Log in"]') || Path === '/login') {
 			Event.preventDefault(); Event.stopImmediatePropagation(); location.href = Instance.account ? '/account' : '/login'; return;
 		}
-		if (Path.startsWith('/tiktokstudio') || Path === '/coin') {
+		if (Path.startsWith('/tiktokstudio') || Path === '/coin' || /^\/live(?:\/|$)/.test(Path) || /^\/@[^/]+\/live\/?$/.test(Path) || Target.closest?.('[data-e2e="nav-live"]')) {
+			if (Target.closest?.('[data-e2e="nav-live"]') && !Path.startsWith('/live')) { Event.preventDefault(); Event.stopImmediatePropagation(); location.href = '/live'; return; }
 			Event.preventDefault(); Event.stopImmediatePropagation(); location.href = new URL(Href, location.origin).pathname + new URL(Href, location.origin).search;
 		}
 	}, true);
