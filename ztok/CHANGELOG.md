@@ -2,6 +2,9 @@
 
 ## 0.1.0
 
+- ztok Studio at `/tiktokstudio` (Studio in the sidebar): Home with key metrics, Posts with search, filters, editing, cover frames and deleting, Analytics (overview, top posts, followers, and per-post charts by day over 7, 28, 60 or 365 days), a Comments manager to reply, like and delete across all your posts, and Upload with drafts and scheduled posts (15 minutes to 30 days ahead). Views, profile views and unfollows are now counted per day.
+- Switch account: keep up to 5 accounts signed in on one browser and swap between them from the ▾ next to your name, or pick one on the login page.
+- Banned accounts show TikTok's account-unavailable page reworded to say the account was banned; missing accounts show "Couldn't find this account".
 - Unknown pages go to TikTok's real 404 page (`/404?fromUrl=...`), and the admin panel no longer sometimes lands on it instead of loading.
 - The repo and Docker image now ship the copy of TikTok's web client ztok is built against, instead of downloading TikTok's latest on first start, which broke new instances whenever TikTok updated.
 - Avatar decorations and nameplates are no longer shipped: import Discord's collectibles catalog from the admin panel's Misc page (upload or URL) or with `npm run collectibles`. The Discord fonts now ship with their Open Font License notices.
