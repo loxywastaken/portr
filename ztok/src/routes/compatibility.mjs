@@ -225,7 +225,11 @@ export async function Compatibility(Context) {
 	}
 	if (Path === '/api/user/detail/') {
 		RequireMethod(Request, ['GET']);
-		const Target = await FindUser(Pool, Params.get('uniqueId') || Params.get('secUid') || User?.id, !Params.get('uniqueId'));
+		// Missing and banned accounts answer with TikTok's own status codes, so the client shows its native
+		// "Couldn't find this account" and banned-account pages instead of a generic error.
+		const Target = await FindUser(Pool, Params.get('uniqueId') || Params.get('secUid') || User?.id, !Params.get('uniqueId')).catch(Failure => { if (Failure.status === 404) return null; throw Failure; });
+		if (!Target) { Json(Response, { statusCode: 10202, status_code: 10202, statusMsg: 'UserNotExist', userInfo: {} }); return true; }
+		if ((await Pool.query('SELECT 1 FROM users WHERE id = $1 AND suspended_at IS NOT NULL', [Target.id])).rowCount) { Json(Response, { statusCode: 10221, status_code: 10221, statusMsg: 'UserBan', userInfo: {} }); return true; }
 		Json(Response, { statusCode: 0, userInfo: { user: UserShape({ ...Target, relation: await Relation(Pool, User?.id, Target.id), story_status: await StoryStatus(Pool, User?.id, Target.id) }, Config.Origin), stats: await UserStats(Pool, Target.id) } }); return true;
 	}
 	if (Path === '/api/user/list/') {
