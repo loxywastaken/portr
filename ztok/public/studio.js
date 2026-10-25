@@ -106,17 +106,93 @@
 	Zone.addEventListener('dragleave', () => Zone.classList.remove('drag-over'));
 	Zone.addEventListener('drop', Event => { Event.preventDefault(); Zone.classList.remove('drag-over'); if (!Busy) SetFile(Event.dataTransfer.files[0]); });
 	Change.addEventListener('click', () => Input.click());
+	// Photos: each one uploads as soon as it's added, so posting only has to build the slideshow.
+	const PhotoMode = document.getElementById('photo-mode'), VideoMode = document.getElementById('video-mode'), PhotoList = document.getElementById('photo-list');
+	const PhotoInput = Form.elements.photos, PhotoDrop = document.getElementById('photo-drop'), PhotoHelp = document.getElementById('photo-help');
+	const Photos = []; let Staging = 0, Dragged = null;
+	const Kind = () => Form.querySelector('input[name="kind"]:checked')?.value ?? 'video';
+	function SyncKind(Clear) {
+		const IsPhotos = Kind() === 'photos';
+		PhotoMode.hidden = !IsPhotos; VideoMode.hidden = IsPhotos; Input.required = !IsPhotos && !Selected;
+		Form.elements.description.placeholder = IsPhotos ? 'Describe your photos. Add #hashtags and @mentions.' : 'Describe your video. Add #hashtags and @mentions.';
+		if (Clear === true) Status.textContent = '';
+	}
+	for (const Radio of Form.querySelectorAll('input[name="kind"]')) Radio.addEventListener('change', () => SyncKind(true));
+	function Stage(Photo) {
+		if (Staging >= 2) return;
+		Staging++; Photo.state = 'uploading'; Draw();
+		fetch('/api/v1/photos/stage', { method: 'POST', headers: { 'content-type': Photo.file.type, 'x-csrf-token': Config.csrf }, body: Photo.file })
+			.then(async Response => { const Data = await Response.json().catch(() => ({})); if (!Response.ok) throw new Error(Data.error ?? 'UploadFailed'); Photo.name = Data.name; Photo.state = 'ready'; })
+			.catch(Failure => { Photo.state = 'error'; Photo.error = { InvalidImage: 'Not a readable image', ImageTooLarge: 'Over 20 MB', TryLater: 'Too many photos today' }[Failure.message] ?? 'Upload failed'; })
+			.finally(() => { Staging--; Draw(); Next(); });
+	}
+	const Next = () => { for (const Photo of Photos) if (Photo.state === 'waiting') Stage(Photo); };
+	function AddPhotos(Files) {
+		for (const File of Files) {
+			if (Photos.length >= 35) { Status.textContent = 'You can post up to 35 photos.'; break; }
+			if (!/^image\/(png|jpeg|webp)$/.test(File.type)) { Status.textContent = `${File.name} isn’t a JPG, PNG or WebP image.`; continue; }
+			if (File.size > 20 * 1048576) { Status.textContent = `${File.name} is over 20 MB.`; continue; }
+			Photos.push({ file: File, url: URL.createObjectURL(File), state: 'waiting' });
+		}
+		Draw(); Next();
+	}
+	function Move(From, To) { if (To < 0 || To >= Photos.length) return; Photos.splice(To, 0, ...Photos.splice(From, 1)); Draw(); PhotoList.children[To]?.querySelector(To > From ? '[data-move="1"]' : '[data-move="-1"]')?.focus(); }
+	function Draw() {
+		PhotoList.replaceChildren(...Photos.map((Photo, Index) => {
+			const Item = document.createElement('li'); Item.draggable = true; Item.dataset.index = Index;
+			const Image = document.createElement('img'); Image.src = Photo.url; Image.alt = `Photo ${Index + 1}`;
+			const Number = document.createElement('span'); Number.className = 'photo-index'; Number.textContent = Index + 1;
+			const Tools = document.createElement('div'); Tools.className = 'photo-tools';
+			const Button = (Text, Label, Action, Disabled = false) => { const B = document.createElement('button'); B.type = 'button'; B.textContent = Text; B.setAttribute('aria-label', Label); B.disabled = Disabled; B.addEventListener('click', Action); return B; };
+			const Left = Button('‹', `Move photo ${Index + 1} earlier`, () => Move(Index, Index - 1), Index === 0); Left.dataset.move = '-1';
+			const Right = Button('›', `Move photo ${Index + 1} later`, () => Move(Index, Index + 1), Index === Photos.length - 1); Right.dataset.move = '1';
+			Tools.append(Left, Button('✕', `Remove photo ${Index + 1}`, () => { URL.revokeObjectURL(Photo.url); Photos.splice(Index, 1); Draw(); }), Right);
+			Item.append(Image, Number, Tools);
+			if (Photo.state !== 'ready') { const State = document.createElement('span'); State.className = `photo-state${Photo.state === 'error' ? ' error' : ''}`; State.textContent = Photo.state === 'error' ? Photo.error : 'Uploading…'; Item.append(State); }
+			Item.addEventListener('dragstart', () => { Dragged = Index; Item.classList.add('dragging'); });
+			Item.addEventListener('dragend', () => Item.classList.remove('dragging'));
+			Item.addEventListener('dragover', Event => { Event.preventDefault(); Item.classList.add('over'); });
+			Item.addEventListener('dragleave', () => Item.classList.remove('over'));
+			Item.addEventListener('drop', Event => { Event.preventDefault(); Event.stopPropagation(); Item.classList.remove('over'); if (Dragged !== null && Dragged !== Index) Move(Dragged, Index); Dragged = null; });
+			return Item;
+		}));
+		PhotoHelp.hidden = !Photos.length;
+		PhotoDrop.querySelector('strong').textContent = Photos.length ? 'Add more photos' : 'Select photos';
+		PhotoDrop.style.minHeight = Photos.length ? '120px' : '';
+	}
+	PhotoInput.addEventListener('change', () => { AddPhotos([...PhotoInput.files]); PhotoInput.value = ''; });
+	PhotoDrop.addEventListener('keydown', Event => { if (['Enter', ' '].includes(Event.key)) { Event.preventDefault(); PhotoInput.click(); } });
+	PhotoDrop.addEventListener('dragover', Event => { Event.preventDefault(); PhotoDrop.classList.add('drag-over'); });
+	PhotoDrop.addEventListener('dragleave', () => PhotoDrop.classList.remove('drag-over'));
+	PhotoDrop.addEventListener('drop', Event => { Event.preventDefault(); PhotoDrop.classList.remove('drag-over'); if (!Busy) AddPhotos([...Event.dataTransfer.files]); });
+
 	function Reset() {
 		if (PreviewUrl) URL.revokeObjectURL(PreviewUrl); PreviewUrl = null; Selected = null;
-		Preview.removeAttribute('src'); Preview.hidden = true; Zone.hidden = false; Change.hidden = true; Picker.hidden = true; Input.required = true; Name.textContent = '';
+		Preview.removeAttribute('src'); Preview.hidden = true; Zone.hidden = false; Change.hidden = true; Picker.hidden = true; Name.textContent = '';
+		for (const Photo of Photos) URL.revokeObjectURL(Photo.url); Photos.length = 0; Draw();
 		Progress.hidden = true; Progress.value = 0;
-		setTimeout(() => { Form.querySelector('textarea[data-count]').dispatchEvent(new Event('input')); Form.querySelector('input[name="when"]:checked')?.dispatchEvent(new Event('change')); });
+		setTimeout(() => { Form.querySelector('textarea[data-count]').dispatchEvent(new Event('input')); Form.querySelector('input[name="when"]:checked')?.dispatchEvent(new Event('change')); SyncKind(); });
 	}
 	Form.addEventListener('reset', Event => { if (Busy) { Event.preventDefault(); return; } Reset(); Status.textContent = ''; Posted.hidden = true; });
+	const Messages = { VideoTooLarge: 'This video is too large.', UnsupportedVideo: 'This video format or length isn’t supported.', UploadsBusy: 'Lots of uploads right now. Try again in a minute.', ScheduleTooSoon: 'Scheduled posts need to be at least 15 minutes from now.', ScheduleTooLate: 'You can schedule up to 30 days ahead.', TryLater: 'You’ve uploaded a lot this hour. Try again later.', InvalidPhotos: 'Some photos didn’t upload. Remove them and try again.' };
+	function Done(Result, Mode, Story, IsPhotos) {
+		Busy = false; Form.reset();
+		if (Result.draft) {
+			Status.textContent = Mode === 'schedule' ? 'Scheduled. It will post at the time you picked.' : 'Saved to drafts.';
+			Posted.href = Mode === 'schedule' ? '/tiktokstudio/content?tab=scheduled' : `/tiktokstudio/drafts/${Result.draft}`; Posted.textContent = Mode === 'schedule' ? 'See scheduled posts' : 'Open draft';
+		} else {
+			Status.textContent = Story ? 'Your story has been posted. It disappears after 24 hours.' : IsPhotos ? 'Your photos have been posted.' : 'Your video has been posted.';
+			Posted.href = Story ? `/@${Config.username}` : `/@${Config.username}/${IsPhotos ? 'photo' : 'video'}/${Result.id}`; Posted.textContent = Story ? 'View profile' : IsPhotos ? 'View post' : 'View video';
+		}
+		Posted.hidden = false;
+	}
 	function Send(Mode) {
 		if (Busy) return;
-		const File = Selected ?? Input.files[0];
-		if (!File) { Status.textContent = 'Select a video first.'; return; }
+		const IsPhotos = Kind() === 'photos', File = Selected ?? Input.files[0];
+		if (IsPhotos) {
+			if (!Photos.length) { Status.textContent = 'Select photos first.'; return; }
+			if (Photos.some(Photo => Photo.state === 'error')) { Status.textContent = 'Remove the photos that didn’t upload first.'; return; }
+		} else if (!File) { Status.textContent = 'Select a video first.'; return; }
 		const When_ = Form.querySelector('input[name="when"]:checked')?.value ?? 'now';
 		if (Mode === 'post' && When_ === 'schedule') {
 			const At = Iso();
@@ -126,32 +202,35 @@
 		}
 		const Story = Mode === 'post' && When_ === 'story';
 		Busy = true; const Controls = [...Form.querySelectorAll('button,input,textarea,select')]; Controls.forEach(Control => { Control.disabled = true; });
+		const Fields = { description: Form.elements.description.value, visibility: Form.elements.visibility.value, comments: Form.elements.comments.value, category: Form.elements.category.value, mode: Mode, ...(Mode === 'schedule' ? { publish_at: Iso() } : {}) };
+		const Fail = Error => { Status.textContent = Messages[Error] ?? Error ?? 'Couldn’t upload. Try again.'; };
+		const Unlock = () => { Busy = false; Controls.forEach(Control => { Control.disabled = false; }); };
+		if (IsPhotos) {
+			Status.textContent = 'Uploading photos…';
+			const Wait = () => Photos.every(Photo => Photo.state === 'ready' || Photo.state === 'error') ? Promise.resolve() : new Promise(Resolve => setTimeout(() => Resolve(Wait()), 300));
+			Wait().then(() => {
+				if (Photos.some(Photo => Photo.state === 'error')) throw new Error('InvalidPhotos');
+				Status.textContent = 'Making your post…';
+				return fetch('/api/v1/photos', { method: 'POST', headers: { 'content-type': 'application/json', 'x-csrf-token': Config.csrf }, body: JSON.stringify({ ...Fields, story: Story, images: Photos.map(Photo => Photo.name) }) });
+			}).then(async Response => { const Result = await Response.json().catch(() => ({})); if (!Response.ok) throw new Error(Result.error); Unlock(); Done(Result, Mode, Story, true); })
+				.catch(Failure => { Unlock(); Fail(Failure.message); });
+			return;
+		}
 		Status.textContent = 'Uploading…'; Progress.hidden = false; Progress.value = 0;
-		const Query = new URLSearchParams({ description: Form.elements.description.value, visibility: Form.elements.visibility.value, comments: Form.elements.comments.value, category: Form.elements.category.value, story: Story ? '1' : '0', cover_time: Cover.value || '0', mode: Mode, ...(Mode === 'schedule' ? { publish_at: Iso() } : {}) });
+		const Query = new URLSearchParams({ ...Fields, story: Story ? '1' : '0', cover_time: Cover.value || '0' });
 		const Request = new XMLHttpRequest(); Request.open('POST', '/api/v1/videos?' + Query);
 		Request.setRequestHeader('content-type', File.type || 'video/mp4'); Request.setRequestHeader('x-csrf-token', Config.csrf);
 		Request.upload.onprogress = Event => { if (Event.lengthComputable) Progress.value = Event.loaded / Event.total * 100; if (Event.loaded === Event.total) Status.textContent = 'Processing video…'; };
 		Request.onload = () => {
 			let Result; try { Result = JSON.parse(Request.responseText); } catch {}
-			if (Request.status < 200 || Request.status >= 300 || !(Result?.id || Result?.draft)) {
-				Status.textContent = ({ VideoTooLarge: 'This video is too large.', UnsupportedVideo: 'This video format or length isn’t supported.', UploadsBusy: 'Lots of uploads right now. Try again in a minute.', ScheduleTooSoon: 'Scheduled posts need to be at least 15 minutes from now.', ScheduleTooLate: 'You can schedule up to 30 days ahead.', TryLater: 'You’ve uploaded a lot this hour. Try again later.' })[Result?.error] ?? Result?.error ?? 'Couldn’t upload. Try again.';
-				return;
-			}
-			Busy = false; Form.reset();
-			if (Result.draft) {
-				Status.textContent = Mode === 'schedule' ? 'Scheduled. It will post at the time you picked.' : 'Saved to drafts.';
-				Posted.href = Mode === 'schedule' ? '/tiktokstudio/content?tab=scheduled' : `/tiktokstudio/drafts/${Result.draft}`; Posted.textContent = Mode === 'schedule' ? 'See scheduled posts' : 'Open draft';
-			} else {
-				Status.textContent = Story ? 'Your story has been posted. It disappears after 24 hours.' : 'Your video has been posted.';
-				Posted.href = Story ? `/@${Config.username}` : `/@${Config.username}/video/${Result.id}`; Posted.textContent = Story ? 'View profile' : 'View video';
-			}
-			Posted.hidden = false;
+			if (Request.status < 200 || Request.status >= 300 || !(Result?.id || Result?.draft)) { Fail(Result?.error); return; }
+			Unlock(); Done(Result, Mode, Story, false);
 		};
 		Request.onerror = () => { Status.textContent = 'Connection lost. Try again.'; };
-		Request.onloadend = () => { Busy = false; Controls.forEach(Control => { Control.disabled = false; }); };
+		Request.onloadend = Unlock;
 		Request.send(File);
 	}
 	Form.addEventListener('submit', Event => { Event.preventDefault(); Send('post'); });
 	document.getElementById('save-draft').addEventListener('click', () => Send('draft'));
-	window.addEventListener('beforeunload', Event => { if (Busy) { Event.preventDefault(); Event.returnValue = ''; } });
+	window.addEventListener('beforeunload', Event => { if (Busy || Staging) { Event.preventDefault(); Event.returnValue = ''; } });
 })();
