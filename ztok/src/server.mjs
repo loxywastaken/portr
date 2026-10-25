@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import { createHash } from 'node:crypto';
 import { Pns } from './routes/pns.mjs';
 import { DeleteExpiredAccounts } from './accounts.mjs';
 import { BackfillCategories } from './categories.mjs';
@@ -49,6 +50,13 @@ const Cleanup = setInterval(() => {
 	WarmDownloads(Pool, Config).catch(() => console.error('DownloadWarmupFailed'));
 }, 3600000).unref();
 
+// Client assets are rewritten once and kept in memory, and browsers may keep them for a day and then revalidate
+// with an ETag, instead of downloading every file again on each page view.
+const ClientCache = new Map();
+let ClientCacheBytes = 0;
+const Tag = Body => `"${createHash('sha1').update(Body).digest('base64url')}"`;
+const NotModified = (Request, Etag) => String(Request.headers['if-none-match'] ?? '').split(',').some(Value => Value.trim().replace(/^W\//, '').replace(/-(?:gzip|zstd|br)"$/, '"') === Etag);
+
 const Server = createServer(async (Request, Response) => {
 	try {
 		Response.setHeader('x-content-type-options', 'nosniff');
@@ -76,17 +84,27 @@ const Server = createServer(async (Request, Response) => {
 			RequireMethod(Request, ['GET', 'HEAD']);
 			const Upstream = new URL(Path === LoginManifestPath ? LoginManifestUrl : `https://${Path.slice('/_client/'.length)}${Url.search}`);
 			try { AssetUrl(Upstream.href); } catch { throw new HttpError(403, 'AssetNotAllowed'); }
-			let Body = await Asset(Upstream.href);
-			const Ext = extname(Upstream.pathname);
-			if (Ext === '.js' && Body.includes('Action:"ApplyImageUpload"')) Body = await MessageUploader(Body);
-			if (['.js', '.css', '.json'].includes(Ext)) Body = Buffer.from(RewriteAssets(Body.toString('utf8'), Config.Origin));
-			Response.writeHead(200, { 'content-type': Mime[Ext] ?? 'application/octet-stream', 'cache-control': 'no-cache' });
-			return Response.end(Request.method === 'HEAD' ? undefined : Body);
+			let Entry = ClientCache.get(Upstream.href);
+			if (!Entry) {
+				let Body = await Asset(Upstream.href);
+				const Ext = extname(Upstream.pathname);
+				if (Ext === '.js' && Body.includes('Action:"ApplyImageUpload"')) Body = await MessageUploader(Body);
+				if (['.js', '.css', '.json'].includes(Ext)) Body = Buffer.from(RewriteAssets(Body.toString('utf8'), Config.Origin));
+				Entry = { Body, Type: Mime[Ext] ?? 'application/octet-stream', Etag: Tag(Body) };
+				if (ClientCacheBytes + Body.length <= 160 * 1024 * 1024) { ClientCache.set(Upstream.href, Entry); ClientCacheBytes += Body.length; }
+			}
+			const Headers = { 'content-type': Entry.Type, 'cache-control': 'public, max-age=86400, stale-while-revalidate=604800', etag: Entry.Etag };
+			if (NotModified(Request, Entry.Etag)) { Response.writeHead(304, Headers); return Response.end(); }
+			Response.writeHead(200, Headers);
+			return Response.end(Request.method === 'HEAD' ? undefined : Entry.Body);
 		}
 		if (Path === '/_local/bridge.js' || Path === '/_ztok/bridge.js') {
-			RequireMethod(Request, ['GET']); Response.setHeader('content-type', Mime['.js']);
-			Response.setHeader('cache-control', 'no-store');
-			return Response.end(await readFile(join(Root, 'src/client/bridge.js')));
+			RequireMethod(Request, ['GET']);
+			const Body = await readFile(join(Root, 'src/client/bridge.js')), Etag = Tag(Body);
+			const Headers = { 'content-type': Mime['.js'], 'cache-control': 'no-cache', etag: Etag };
+			if (NotModified(Request, Etag)) { Response.writeHead(304, Headers); return Response.end(); }
+			Response.writeHead(200, Headers);
+			return Response.end(Body);
 		}
 		if (Path.startsWith('/public/')) {
 			RequireMethod(Request, ['GET', 'HEAD']);
@@ -94,7 +112,7 @@ const Server = createServer(async (Request, Response) => {
 			if (!/^(?:[a-z0-9_-]+\.(?:svg|css|js)|fonts\/[a-z0-9-]+\.woff2)$/.test(Name)) throw new HttpError(404, 'NotFound');
 			const Body = await readFile(join(Root, 'public', Name)).catch(() => { throw new HttpError(404, 'NotFound'); });
 			Response.setHeader('content-type', Mime[extname(Name)]);
-			Response.setHeader('cache-control', Name.startsWith('fonts/') ? 'public, max-age=31536000, immutable' : 'no-cache');
+			Response.setHeader('cache-control', Name.startsWith('fonts/') || Url.searchParams.has('v') ? 'public, max-age=31536000, immutable' : 'no-cache');
 			return Response.end(Request.method === 'HEAD' ? undefined : Body);
 		}
 		if (Path.startsWith('/media/')) {
