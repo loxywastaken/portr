@@ -2468,3 +2468,55 @@ test('sounds: reuse a public video\'s audio, the sound page lists every video us
 	await Pool.query('UPDATE users SET private_account = false WHERE username = $1', ['sound_maker']);
 	void User_;
 });
+
+test('LIVE: host streams over a WebSocket, viewers get HLS, chat, likes and gifts, and it ends cleanly', async () => {
+	const Host = await CreateUser(Pool, { username: 'live_host', displayName: 'Live Host', password: Password }, 'closed', true);
+	await CreateUser(Pool, { username: 'live_fan', displayName: 'Live Fan', password: Password }, 'closed', true);
+	const Sign = async Name => { const Signed = await Login(Pool, Name, Password); return { cookie: `ztok_session=${Signed.Token}`, 'x-csrf-token': Signed.Csrf }; };
+	const AsHost = await Sign('live_host'), AsFan = await Sign('live_fan');
+	assert.equal((await Call('/api/v1/live', 'POST', { title: 'x' })).status, 401);
+	const Started = await Call('/api/v1/live', 'POST', { title: 'First LIVE' }, AsHost);
+	assert.equal(Started.status, 201); const Live = (await Started.json()).live;
+	assert.equal((await (await Call('/api/v1/live', 'POST', { title: 'Again' }, AsHost)).json()).live.id, Live.id);
+	assert.equal((await (await Call('/api/v1/live/user/live_host')).json()).live.id, Live.id);
+	assert.equal((await fetch(`${Origin}/@live_host/live`)).status, 200);
+	const Socket = (Path, Headers) => new Promise((Resolve, Reject) => {
+		const Request_ = HttpRequest(Origin + Path, { headers: { ...Headers, connection: 'Upgrade', upgrade: 'websocket', origin: Origin, 'sec-websocket-version': '13', 'sec-websocket-key': Buffer.from('ztoklivetest1234').toString('base64') } });
+		Request_.on('upgrade', (_, Raw) => Resolve(Raw)); Request_.on('response', Response => Reject(new Error(`NoUpgrade${Response.statusCode}`))); Request_.on('error', Reject); Request_.end();
+	});
+	const Frame = (Opcode, Payload) => { const Mask = Buffer.from([1, 2, 3, 4]), Body = Buffer.from(Payload).map((Byte, Index) => Byte ^ Mask[Index & 3]); const Length = Body.length;
+		const Head = Length < 126 ? Buffer.from([0x80 | Opcode, 0x80 | Length]) : Length < 65536 ? Buffer.from([0x80 | Opcode, 0x80 | 126, Length >> 8, Length & 255]) : Buffer.concat([Buffer.from([0x80 | Opcode, 0x80 | 127]), (() => { const B = Buffer.alloc(8); B.writeBigUInt64BE(BigInt(Length)); return B; })()]);
+		return Buffer.concat([Head, Mask, Body]); };
+	const Messages = Raw => { const Seen = []; let Buffered = Buffer.alloc(0); Raw.on('data', Chunk => { Buffered = Buffer.concat([Buffered, Chunk]); while (Buffered.length >= 2) { let Length = Buffered[1] & 127, Offset = 2; if (Length === 126) { Length = Buffered.readUInt16BE(2); Offset = 4; } if (Buffered.length < Offset + Length) return; if ((Buffered[0] & 15) === 1) Seen.push(JSON.parse(Buffered.subarray(Offset, Offset + Length).toString())); Buffered = Buffered.subarray(Offset + Length); } }); return Seen; };
+	await assert.rejects(Socket(`/ws/live/${Live.id}?role=host`, AsFan), /NoUpgrade403/);
+	const HostSocket = await Socket(`/ws/live/${Live.id}?role=host`, AsHost), HostSeen = Messages(HostSocket);
+	const Recording = join(Directory, 'live.webm');
+	assert.equal(spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'testsrc2=size=160x284:rate=15:duration=5', '-f', 'lavfi', '-i', 'sine=duration=5', '-c:v', 'libvpx', '-deadline', 'realtime', '-c:a', 'libopus', '-shortest', '-y', Recording]).status, 0);
+	const Bytes = await readFile(Recording);
+	for (let Offset = 0; Offset < Bytes.length; Offset += 16384) HostSocket.write(Frame(2, Bytes.subarray(Offset, Offset + 16384)));
+	const FanSocket = await Socket(`/ws/live/${Live.id}`, AsFan), FanSeen = Messages(FanSocket);
+	FanSocket.write(Frame(1, JSON.stringify({ type: 'chat', text: 'hello host' })));
+	FanSocket.write(Frame(1, JSON.stringify({ type: 'like', count: 4 })));
+	await Pool.query('UPDATE users SET coins = 50 WHERE username = $1', ['live_fan']);
+	FanSocket.write(Frame(1, JSON.stringify({ type: 'gift', gift: 'star' })));
+	let Playlist = null;
+	for (let Try = 0; Try < 40 && !Playlist; Try++) { await new Promise(Resolve => setTimeout(Resolve, 500)); const Response = await fetch(`${Origin}/live/${Live.id}/index.m3u8`); if (Response.ok) Playlist = await Response.text(); }
+	assert.ok(Playlist?.includes('#EXTM3U'), 'playlist');
+	const Segment = Playlist.split('\n').find(Line => Line.endsWith('.ts'));
+	assert.equal((await fetch(`${Origin}/live/${Live.id}/${Segment}`)).headers.get('content-type'), 'video/mp2t');
+	await new Promise(Resolve => setTimeout(Resolve, 1500));
+	assert.ok(HostSeen.some(Message => Message.type === 'chat' && Message.text === 'hello host'));
+	assert.ok(HostSeen.some(Message => Message.type === 'gift' && Message.gift.key === 'star'));
+	assert.ok(FanSeen.some(Message => Message.type === 'likes' && Message.total === 4));
+	assert.equal((await Pool.query('SELECT coins FROM users WHERE username = $1', ['live_fan'])).rows[0].coins, 30);
+	assert.equal((await Call(`/api/v1/live/${Live.id}/end`, 'POST', {}, AsFan)).status, 404);
+	assert.equal((await Call(`/api/v1/live/${Live.id}/end`, 'POST', {}, AsHost)).status, 200);
+	await new Promise(Resolve => setTimeout(Resolve, 300));
+	assert.ok(FanSeen.some(Message => Message.type === 'end'));
+	const Row = (await Pool.query('SELECT ended_at, likes, chat_messages FROM lives WHERE id = $1', [Live.id])).rows[0];
+	assert.ok(Row.ended_at); assert.equal(Row.likes, 4); assert.equal(Row.chat_messages, 1);
+	assert.equal((await (await Call(`/api/v1/live/${Live.id}/summary`, 'GET', undefined, AsHost)).json()).summary.gift_coins, 20);
+	assert.equal((await (await Call('/api/v1/live/user/live_host')).json()).live, null);
+	assert.equal((await fetch(`${Origin}/live/${Live.id}/index.m3u8`)).status, 404);
+	HostSocket.destroy(); FanSocket.destroy(); void Host;
+});
