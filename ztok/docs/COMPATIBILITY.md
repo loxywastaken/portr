@@ -45,7 +45,8 @@ ztok runs TikTok's own web client, so most of the job is answering its API calls
 
 ## Not done
 
-- LIVE and the shop. The buttons are still there but don't do anything. Coins are ztok's own free coins (no purchases): Get Coins opens `/coin`, and gifts are sent from a Gift button ztok adds to posts.
+- The shop. Its button is still there but doesn't do anything. Coins are ztok's own free coins (no purchases): Get Coins opens `/coin`, and gifts are sent from a Gift button ztok adds to posts.
+- The client's own LIVE rooms (TikTok's webcast APIs). ztok has its own LIVE instead: the LIVE button opens `/live`, rooms are at `/@user/live`, and hosts go LIVE from Studio.
 - Phone numbers and SMS, and signing in with Google, Apple, Facebook or a QR code.
 - Most of Settings beyond privacy, downloading your data and deleting your account.
 - Pinned comments (the web client doesn't have them), and photos or videos in group chats.
