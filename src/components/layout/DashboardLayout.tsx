@@ -19,20 +19,19 @@ export function DashboardLayout() {
   }, [overview.isError, navigate]);
 
   return (
-    <div className="min-h-screen">
-      <div className="mx-auto flex w-full max-w-[1440px]">
-        <Sidebar guildId={guildId} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
-        <div className="flex min-h-screen w-full min-w-0 flex-1 flex-col">
-          <Topbar overview={overview.data} onMenu={() => setMobileOpen(true)} />
-          <main className="scrollbar-thin flex-1 px-4 py-6 sm:px-6 lg:px-8">
-            <div className="mx-auto w-full max-w-6xl">
-              {/* Tabs load lazily; keep the sidebar and top bar up while one loads. */}
-              <Suspense fallback={<TabSkeleton />}>
-                <Outlet />
-              </Suspense>
-            </div>
-          </main>
-        </div>
+    // Full-viewport app shell: sidebar pinned to the left edge, content fills the rest.
+    <div className="flex min-h-screen w-full">
+      <Sidebar guildId={guildId} mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
+        <Topbar overview={overview.data} onMenu={() => setMobileOpen(true)} />
+        <main className="scrollbar-thin flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+          <div className="w-full max-w-[1600px]">
+            {/* Tabs load lazily; keep the sidebar and top bar up while one loads. */}
+            <Suspense fallback={<TabSkeleton />}>
+              <Outlet />
+            </Suspense>
+          </div>
+        </main>
       </div>
     </div>
   );

@@ -65,8 +65,8 @@ export function Sidebar({ guildId, mobileOpen, onClose }: SidebarProps) {
       />
       <aside
         className={cn(
-          'fixed z-40 flex h-screen w-64 flex-col border-r border-white/10 bg-surface-soft/80 backdrop-blur-xl transition-transform duration-300',
-          'lg:sticky lg:top-0 lg:translate-x-0',
+          'fixed left-0 top-0 z-40 flex h-screen w-64 shrink-0 flex-col border-r border-white/10 bg-surface-soft/80 backdrop-blur-xl transition-transform duration-300',
+          'lg:sticky lg:translate-x-0',
           mobileOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >

@@ -9,7 +9,10 @@ export function getSocket(): Socket {
   if (!socket) {
     socket = io(API_URL || '/', {
       withCredentials: true,
-      transports: ['websocket', 'polling'],
+      // Start with long-polling (works through the Vercel rewrite) and upgrade to a
+      // WebSocket only when the path supports it; tryAllTransports covers a failed upgrade.
+      transports: ['polling', 'websocket'],
+      tryAllTransports: true,
       autoConnect: true,
     });
   }
