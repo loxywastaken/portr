@@ -51,6 +51,7 @@ interface AdminGuild {
   icon: string | null;
   memberCount: number;
   ownerId: string;
+  owner: { id: string; username: string; displayName: string; avatar: string | null } | null;
   joinedAt: string | null;
 }
 
@@ -330,7 +331,15 @@ function ServersTab({ guilds, loading }: { guilds?: AdminGuild[]; loading: boole
   const rows = useMemo(() => {
     const term = q.trim().toLowerCase();
     return [...(guilds ?? [])]
-      .filter((g) => !term || g.name.toLowerCase().includes(term) || g.id.includes(term))
+      .filter(
+        (g) =>
+          !term ||
+          g.name.toLowerCase().includes(term) ||
+          g.id.includes(term) ||
+          g.ownerId.includes(term) ||
+          g.owner?.username.toLowerCase().includes(term) ||
+          g.owner?.displayName.toLowerCase().includes(term),
+      )
       .sort((a, b) => b.memberCount - a.memberCount);
   }, [guilds, q]);
 
@@ -366,12 +375,12 @@ function ServersTab({ guilds, loading }: { guilds?: AdminGuild[]; loading: boole
       action={
         <div className="relative w-full sm:w-64">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search servers" className="h-9 pl-9" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search servers or owners" className="h-9 pl-9" />
         </div>
       }
     >
       <Table
-        head={['Server', 'Members', 'Joined', 'Server ID', '']}
+        head={['Server', 'Owner', 'Members', 'Joined', 'Server ID', '']}
         loading={loading}
         empty={rows.length === 0 && !loading ? 'No servers match.' : undefined}
       >
@@ -379,6 +388,17 @@ function ServersTab({ guilds, loading }: { guilds?: AdminGuild[]; loading: boole
           <tr key={g.id}>
             <td>
               <Person name={g.name} avatar={g.icon} square />
+            </td>
+            <td>
+              {g.owner ? (
+                <Person
+                  name={g.owner.displayName}
+                  avatar={g.owner.avatar}
+                  sub={g.owner.displayName !== g.owner.username ? `@${g.owner.username}` : g.owner.id}
+                />
+              ) : (
+                <span className="font-mono text-xs text-ink-faint">{g.ownerId}</span>
+              )}
             </td>
             <td>{formatNumber(g.memberCount)}</td>
             <td className="text-ink-muted">{g.joinedAt ? formatRelativeTime(g.joinedAt) : '—'}</td>
