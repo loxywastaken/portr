@@ -72,7 +72,7 @@ function Group({ title, guilds }: { title: string; guilds: ManageableGuild[] }) 
       <h2 className="mb-3 text-sm font-medium text-ink-muted">
         {title} <span className="text-ink-faint">· {guilds.length}</span>
       </h2>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {guilds.map((g) => (
           <GuildRow key={g.id} guild={g} />
         ))}
@@ -102,13 +102,13 @@ export default function ServerSelect() {
       </AppHeader>
 
       <main className="px-4 py-8 sm:px-6 lg:px-10">
-        <div className="max-w-[1600px]">
+        <div className="mx-auto max-w-6xl">
           <h1 className="text-xl font-semibold tracking-tight">Servers</h1>
           <p className="mt-1 text-sm text-ink-muted">Pick a server to manage, or add Nexus to one you own.</p>
 
           <div className="mt-6 space-y-8 border-t pt-6">
             {isLoading && (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {Array.from({ length: 6 }).map((_, i) => (
                   <div key={i} className="flex items-center gap-3 rounded-xl border bg-surface-soft p-4">
                     <Skeleton className="h-10 w-10 rounded-lg" />
