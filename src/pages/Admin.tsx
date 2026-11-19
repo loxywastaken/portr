@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Crown, Plus, Search } from 'lucide-react';
+import { ArrowLeft, Crown, LogIn, Plus, Search } from 'lucide-react';
 import { api, extractApiError } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/toast';
@@ -333,6 +333,31 @@ function ServersTab({ guilds, loading }: { guilds?: AdminGuild[]; loading: boole
       .sort((a, b) => b.memberCount - a.memberCount);
   }, [guilds, q]);
 
+  const toast = useToast();
+  const join = useMutation({
+    mutationFn: (id: string) =>
+      api.post<{ url: string }>(`/admin/guilds/${id}/invite`).then((r) => r.data.url),
+  });
+
+  // Open the tab synchronously on click so popup blockers allow it, then point it at the invite.
+  const onJoin = (id: string) => {
+    const tab = window.open('about:blank', '_blank');
+    join.mutate(id, {
+      onSuccess: (url) => {
+        if (tab) {
+          tab.opener = null;
+          tab.location.href = url;
+        } else {
+          window.location.href = url;
+        }
+      },
+      onError: (err) => {
+        tab?.close();
+        toast(extractApiError(err).message, 'error');
+      },
+    });
+  };
+
   return (
     <Section
       title="Servers"
@@ -344,7 +369,7 @@ function ServersTab({ guilds, loading }: { guilds?: AdminGuild[]; loading: boole
       }
     >
       <Table
-        head={['Server', 'Members', 'Joined', 'Server ID']}
+        head={['Server', 'Members', 'Joined', 'Server ID', '']}
         loading={loading}
         empty={rows.length === 0 && !loading ? 'No servers match.' : undefined}
       >
@@ -356,6 +381,16 @@ function ServersTab({ guilds, loading }: { guilds?: AdminGuild[]; loading: boole
             <td>{formatNumber(g.memberCount)}</td>
             <td className="text-ink-muted">{g.joinedAt ? formatRelativeTime(g.joinedAt) : '—'}</td>
             <td className="font-mono text-xs text-ink-faint">{g.id}</td>
+            <td className="text-right">
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={join.isPending && join.variables === g.id}
+                onClick={() => onJoin(g.id)}
+              >
+                <LogIn className="h-3.5 w-3.5" /> Join
+              </Button>
+            </td>
           </tr>
         ))}
       </Table>

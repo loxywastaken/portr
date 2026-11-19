@@ -11,10 +11,13 @@ import {
   Megaphone,
   Newspaper,
   ScrollText,
+  Crown,
+  History,
   Settings,
-  Shield,
   ShieldCheck,
+  Tags,
   Ticket,
+  TrendingUp,
   Trophy,
   UserPlus,
   type LucideIcon,
@@ -37,22 +40,45 @@ interface NavItem {
 
 export function Sidebar({ guildId, mobileOpen, onClose }: SidebarProps) {
   const base = `/dashboard/${guildId}`;
-  const items: NavItem[] = [
-    { to: base, label: 'Overview', icon: LayoutDashboard, end: true },
-    { to: `${base}/welcome`, label: 'Welcome', icon: UserPlus },
-    { to: `${base}/server`, label: 'Server', icon: Shield },
-    { to: `${base}/panels`, label: 'Info Panels', icon: ScrollText },
-    { to: `${base}/applications`, label: 'Applications', icon: ClipboardList },
-    { to: `${base}/tickets`, label: 'Tickets', icon: Ticket },
-    { to: `${base}/giveaways`, label: 'Giveaways', icon: Gift },
-    { to: `${base}/templates`, label: 'Templates', icon: LayoutTemplate },
-    { to: `${base}/socials`, label: 'Social Posts', icon: Megaphone },
-    { to: `${base}/stats`, label: 'User Stats', icon: Trophy },
-    { to: `${base}/moderation`, label: 'Moderation', icon: Gavel },
-    { to: `${base}/automod`, label: 'Auto Mod', icon: ShieldCheck },
-    { to: `${base}/analytics`, label: 'Analytics', icon: BarChart3 },
-    { to: `${base}/commands`, label: 'Commands', icon: BookOpen },
-    { to: `${base}/settings`, label: 'Settings', icon: Settings },
+  const groups: { title: string; items: NavItem[] }[] = [
+    {
+      title: 'Server',
+      items: [
+        { to: base, label: 'Overview', icon: LayoutDashboard, end: true },
+        { to: `${base}/analytics`, label: 'Analytics', icon: BarChart3 },
+        { to: `${base}/settings`, label: 'Settings', icon: Settings },
+        { to: `${base}/premium`, label: 'Premium', icon: Crown },
+      ],
+    },
+    {
+      title: 'Community',
+      items: [
+        { to: `${base}/welcome`, label: 'Welcome', icon: UserPlus },
+        { to: `${base}/leveling`, label: 'Leveling', icon: TrendingUp },
+        { to: `${base}/rolemenus`, label: 'Role Menus', icon: Tags },
+        { to: `${base}/stats`, label: 'User Stats', icon: Trophy },
+        { to: `${base}/panels`, label: 'Info Panels', icon: ScrollText },
+        { to: `${base}/applications`, label: 'Applications', icon: ClipboardList },
+        { to: `${base}/tickets`, label: 'Tickets', icon: Ticket },
+        { to: `${base}/giveaways`, label: 'Giveaways', icon: Gift },
+      ],
+    },
+    {
+      title: 'Safety',
+      items: [
+        { to: `${base}/moderation`, label: 'Moderation', icon: Gavel },
+        { to: `${base}/automod`, label: 'Auto Mod', icon: ShieldCheck },
+        { to: `${base}/logs`, label: 'Logs', icon: History },
+      ],
+    },
+    {
+      title: 'Tools',
+      items: [
+        { to: `${base}/templates`, label: 'Templates', icon: LayoutTemplate },
+        { to: `${base}/socials`, label: 'Social Posts', icon: Megaphone },
+        { to: `${base}/commands`, label: 'Commands', icon: BookOpen },
+      ],
+    },
   ];
 
   return (
@@ -76,25 +102,32 @@ export function Sidebar({ guildId, mobileOpen, onClose }: SidebarProps) {
           <span className="text-lg font-semibold tracking-tight">Nexus Service</span>
         </div>
 
-        <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto border-t px-3 py-4">
-          {items.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              onClick={onClose}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-                  isActive
-                    ? 'bg-white/[0.07] font-medium text-white'
-                    : 'text-ink-muted hover:bg-white/[0.04] hover:text-ink',
-                )
-              }
-            >
-              <item.icon className="h-[18px] w-[18px]" />
-              {item.label}
-            </NavLink>
+        <nav className="scrollbar-thin min-h-0 flex-1 space-y-5 overflow-y-auto border-t px-3 py-4">
+          {groups.map((group) => (
+            <div key={group.title}>
+              <div className="px-3 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-ink-faint">{group.title}</div>
+              <div className="space-y-0.5">
+                {group.items.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.end}
+                    onClick={onClose}
+                    className={({ isActive }) =>
+                      cn(
+                        'flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors',
+                        isActive
+                          ? 'bg-white/[0.07] font-medium text-white'
+                          : 'text-ink-muted hover:bg-white/[0.04] hover:text-ink',
+                      )
+                    }
+                  >
+                    <item.icon className={cn('h-4 w-4', item.label === 'Premium' && 'text-amber-300')} />
+                    {item.label}
+                  </NavLink>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
 

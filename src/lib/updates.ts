@@ -16,6 +16,27 @@ export interface Update {
 export const updates: Update[] = [
   {
     date: '2026-11-19',
+    title: 'Leveling, role menus, server logs and Premium',
+    areas: ['Site', 'Bot'],
+    changes: [
+      'New Settings page with every server-wide option in one place: general, moderation, log channels and branding.',
+      'Server logs: the bot now posts deleted and edited messages, joins, leaves, role and nickname changes, and bans to your log channels.',
+      'New Leveling page: XP range, cooldown, no-XP channels and roles, custom level-up message, up to 5 role rewards and a leaderboard.',
+      'New Role Menus page: build, edit and remove self-assign role menus, including pick-one menus.',
+      'Analytics now tracks messages, joins, leaves and net growth over time.',
+      'Sidebar is grouped into Server, Community, Safety and Tools.',
+      'Premium can now be turned on per server (up to 2) and adds: custom bot nickname and footer, XP multipliers, voice XP, level-up images, 25 level rewards, searchable 30-day logs, 90-day analytics and 25 role menus.',
+      'New Premium page with every perk, free vs Premium, and how to buy.',
+    ],
+  },
+  {
+    date: '2026-11-19',
+    title: 'Join any server from the admin panel',
+    areas: ['Site', 'Bot'],
+    changes: ['Owners can open an invite to any server Nexus is in from the admin Servers tab, to step in and moderate.'],
+  },
+  {
+    date: '2026-11-19',
     title: 'Cleaner look and a reorganised admin panel',
     areas: ['Site'],
     changes: [

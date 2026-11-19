@@ -20,6 +20,11 @@ export function AppHeader({ children }: { children?: ReactNode }) {
         </Link>
 
         <div className="flex items-center gap-2">
+          <Link to="/premium" className="hidden sm:block">
+            <Button variant="ghost" size="sm" className="text-amber-300 hover:text-amber-200">
+              Premium
+            </Button>
+          </Link>
           <Link to="/updates">
             <Button variant="ghost" size="sm">
               Updates

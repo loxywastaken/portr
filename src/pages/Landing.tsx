@@ -46,6 +46,11 @@ export default function Landing() {
           <span className="text-lg font-semibold tracking-tight">Nexus Service</span>
         </div>
         <div className="flex items-center gap-2">
+          <Link to="/premium">
+            <Button size="sm" variant="ghost">
+              Premium
+            </Button>
+          </Link>
           <Link to="/updates">
             <Button size="sm" variant="ghost">
               Updates

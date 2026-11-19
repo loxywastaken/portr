@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import Landing from './pages/Landing';
 import { ProtectedRoute } from './components/common/ProtectedRoute';
 import { FullPageLoader } from './components/common/FullPageLoader';
@@ -18,7 +18,11 @@ const Welcome = lazy(() => import('./pages/dashboard/Welcome'));
 const Moderation = lazy(() => import('./pages/dashboard/Moderation'));
 const Analytics = lazy(() => import('./pages/dashboard/Analytics'));
 const Settings = lazy(() => import('./pages/dashboard/Settings'));
-const Server = lazy(() => import('./pages/dashboard/Server'));
+const Leveling = lazy(() => import('./pages/dashboard/Leveling'));
+const RoleMenus = lazy(() => import('./pages/dashboard/RoleMenus'));
+const Logs = lazy(() => import('./pages/dashboard/Logs'));
+const Premium = lazy(() => import('./pages/dashboard/Premium'));
+const PremiumInfo = lazy(() => import('./pages/PremiumInfo'));
 const Panels = lazy(() => import('./pages/dashboard/Panels'));
 const Applications = lazy(() => import('./pages/dashboard/Applications'));
 const Tickets = lazy(() => import('./pages/dashboard/Tickets'));
@@ -36,6 +40,7 @@ export default function App() {
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/updates" element={<Updates />} />
+        <Route path="/premium" element={<PremiumInfo />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route
           path="/servers"
@@ -63,7 +68,12 @@ export default function App() {
         >
           <Route index element={<Overview />} />
           <Route path="welcome" element={<Welcome />} />
-          <Route path="server" element={<Server />} />
+          {/* The old Server page was split into Settings (autorole) and Role Menus. */}
+          <Route path="server" element={<Navigate to="../rolemenus" replace />} />
+          <Route path="leveling" element={<Leveling />} />
+          <Route path="rolemenus" element={<RoleMenus />} />
+          <Route path="logs" element={<Logs />} />
+          <Route path="premium" element={<Premium />} />
           <Route path="panels" element={<Panels />} />
           <Route path="applications" element={<Applications />} />
           <Route path="tickets" element={<Tickets />} />
