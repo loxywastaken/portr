@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   LayoutTemplate,
   Megaphone,
+  Newspaper,
   ScrollText,
   Settings,
   Shield,
@@ -97,7 +98,15 @@ export function Sidebar({ guildId, mobileOpen, onClose }: SidebarProps) {
           ))}
         </nav>
 
-        <div className="border-t border-white/10 p-3">
+        <div className="space-y-0.5 border-t p-3">
+          <Link
+            to="/updates"
+            onClick={onClose}
+            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-ink-muted transition-colors hover:bg-white/[0.04] hover:text-ink"
+          >
+            <Newspaper className="h-[18px] w-[18px]" />
+            Updates
+          </Link>
           <Link
             to="/servers"
             onClick={onClose}

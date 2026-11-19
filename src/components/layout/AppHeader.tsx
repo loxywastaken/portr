@@ -20,6 +20,11 @@ export function AppHeader({ children }: { children?: ReactNode }) {
         </Link>
 
         <div className="flex items-center gap-2">
+          <Link to="/updates">
+            <Button variant="ghost" size="sm">
+              Updates
+            </Button>
+          </Link>
           {children}
           {user && (
             <div className="ml-1 hidden items-center gap-2 sm:flex">

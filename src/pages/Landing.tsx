@@ -45,11 +45,18 @@ export default function Landing() {
           <Logo className="h-7 w-auto text-white" />
           <span className="text-lg font-semibold tracking-tight">Nexus Service</span>
         </div>
-        {!user && (
-          <Button size="sm" variant="secondary" onClick={login}>
-            <DiscordIcon className="h-4 w-4" /> Sign in
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <Link to="/updates">
+            <Button size="sm" variant="ghost">
+              Updates
+            </Button>
+          </Link>
+          {!user && (
+            <Button size="sm" variant="secondary" onClick={login}>
+              <DiscordIcon className="h-4 w-4" /> Sign in
+            </Button>
+          )}
+        </div>
       </header>
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-6">
