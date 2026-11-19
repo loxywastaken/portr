@@ -1,7 +1,8 @@
 import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Crown, LogIn, Plus, Search } from 'lucide-react';
+import { ArrowLeft, Copy, Crown, ExternalLink, LogIn, Plus, Search } from 'lucide-react';
+import { Modal } from '@/components/ui/Modal';
 import { api, extractApiError } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/toast';
@@ -339,23 +340,24 @@ function ServersTab({ guilds, loading }: { guilds?: AdminGuild[]; loading: boole
       api.post<{ url: string }>(`/admin/guilds/${id}/invite`).then((r) => r.data.url),
   });
 
-  // Open the tab synchronously on click so popup blockers allow it, then point it at the invite.
-  const onJoin = (id: string) => {
-    const tab = window.open('about:blank', '_blank');
-    join.mutate(id, {
-      onSuccess: (url) => {
-        if (tab) {
-          tab.opener = null;
-          tab.location.href = url;
-        } else {
-          window.location.href = url;
-        }
-      },
-      onError: (err) => {
-        tab?.close();
-        toast(extractApiError(err).message, 'error');
-      },
+  // Fetch the invite, then show it with a plain link and a copy button. We never open or
+  // drive a Discord tab from script: Discord's web app can sign you out when it's loaded
+  // into a tab another site opened and navigated.
+  const [invite, setInvite] = useState<{ name: string; url: string } | null>(null);
+  const onJoin = (g: AdminGuild) => {
+    join.mutate(g.id, {
+      onSuccess: (url) => setInvite({ name: g.name, url }),
+      onError: (err) => toast(extractApiError(err).message, 'error'),
     });
+  };
+  const copy = async () => {
+    if (!invite) return;
+    try {
+      await navigator.clipboard.writeText(invite.url);
+      toast('Invite copied — paste it in Discord', 'success');
+    } catch {
+      toast("Couldn't copy — select the link and copy it", 'error');
+    }
   };
 
   return (
@@ -386,7 +388,7 @@ function ServersTab({ guilds, loading }: { guilds?: AdminGuild[]; loading: boole
                 variant="secondary"
                 size="sm"
                 loading={join.isPending && join.variables === g.id}
-                onClick={() => onJoin(g.id)}
+                onClick={() => onJoin(g)}
               >
                 <LogIn className="h-3.5 w-3.5" /> Join
               </Button>
@@ -394,6 +396,27 @@ function ServersTab({ guilds, loading }: { guilds?: AdminGuild[]; loading: boole
           </tr>
         ))}
       </Table>
+
+      <Modal
+        open={!!invite}
+        onClose={() => setInvite(null)}
+        title={invite ? `Join ${invite.name}` : ''}
+        description="Open the invite in your browser, or copy it and paste it into the Discord app."
+        footer={
+          <>
+            <Button variant="ghost" onClick={copy}>
+              <Copy className="h-4 w-4" /> Copy link
+            </Button>
+            <a href={invite?.url} target="_blank" rel="noopener noreferrer" onClick={() => setInvite(null)}>
+              <Button>
+                <ExternalLink className="h-4 w-4" /> Open invite
+              </Button>
+            </a>
+          </>
+        }
+      >
+        <code className="block select-all break-all rounded-lg border bg-surface px-3 py-2 text-sm">{invite?.url}</code>
+      </Modal>
     </Section>
   );
 }
