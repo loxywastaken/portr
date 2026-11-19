@@ -18,16 +18,14 @@ export function StatCard({
   label,
   value,
   hint,
-  accent = 'text-brand-300',
+  accent = 'text-ink-muted',
   loading = false,
 }: StatCardProps) {
   return (
-    <GlassCard className="p-5 transition-colors duration-300 hover:border-white/20">
+    <GlassCard className="p-5">
       <div className="flex items-center justify-between">
         <span className="text-sm text-ink-muted">{label}</span>
-        <span className={cn('grid h-9 w-9 place-items-center rounded-xl bg-white/5', accent)}>
-          <Icon className="h-[18px] w-[18px]" strokeWidth={2} />
-        </span>
+        <Icon className={cn('h-4 w-4 opacity-70', accent)} strokeWidth={2} />
       </div>
       {loading ? (
         <Skeleton className="mt-4 h-8 w-24" />

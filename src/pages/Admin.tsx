@@ -1,33 +1,17 @@
-import { useState, type FormEvent } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { Link, Navigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  Activity,
-  ArrowLeft,
-  Clock,
-  Command as CommandIcon,
-  Crown,
-  Gauge,
-  LogOut,
-  Plus,
-  Server,
-  ShieldCheck,
-  Sparkles,
-  Trash2,
-  Users,
-} from 'lucide-react';
+import { ArrowLeft, Crown, Plus, Search } from 'lucide-react';
 import { api, extractApiError } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/toast';
 import { GlassCard } from '@/components/ui/GlassCard';
-import { StatCard } from '@/components/ui/StatCard';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { Skeleton } from '@/components/ui/Skeleton';
-import { Logo } from '@/components/common/Logo';
-import { formatDuration, formatNumber, formatRelativeTime, initialsOf } from '@/lib/utils';
+import { AppHeader } from '@/components/layout/AppHeader';
+import { cn, formatDuration, formatNumber, formatRelativeTime, initialsOf } from '@/lib/utils';
 
 /* ------------------------------------------------------------------ types -- */
 
@@ -78,20 +62,15 @@ interface AdminUser {
   premium: boolean;
 }
 
-/* --------------------------------------------------------------- fetchers -- */
-
 const getData = <T,>(url: string) => api.get<T>(url).then((r) => r.data);
+
+type Tab = 'overview' | 'premium' | 'servers' | 'users';
 
 /* ------------------------------------------------------------------- page -- */
 
 export default function Admin() {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
-  const toast = useToast();
-  const qc = useQueryClient();
-
-  const [userId, setUserId] = useState('');
-  const [days, setDays] = useState('0');
+  const { user } = useAuth();
+  const [tab, setTab] = useState<Tab>('overview');
 
   const overview = useQuery({
     queryKey: ['admin', 'overview'],
@@ -111,11 +90,132 @@ export default function Admin() {
     queryFn: () => getData<{ users: AdminUser[] }>('/admin/users').then((d) => d.users),
   });
 
-  const invalidate = () => {
-    void qc.invalidateQueries({ queryKey: ['admin', 'overview'] });
-    void qc.invalidateQueries({ queryKey: ['admin', 'premium'] });
-    void qc.invalidateQueries({ queryKey: ['admin', 'users'] });
-  };
+  // Owner gate, after all hooks so hook order stays stable.
+  if (user && !user.isOwner) return <Navigate to="/servers" replace />;
+
+  const tabs: { id: Tab; label: string; count?: number }[] = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'premium', label: 'Premium', count: premium.data?.length },
+    { id: 'servers', label: 'Servers', count: guilds.data?.length },
+    { id: 'users', label: 'Users', count: users.data?.length },
+  ];
+
+  return (
+    <div className="min-h-screen">
+      <AppHeader>
+        <Link to="/servers">
+          <Button variant="ghost" size="sm">
+            <ArrowLeft className="h-4 w-4" /> Servers
+          </Button>
+        </Link>
+      </AppHeader>
+
+      <main className="px-4 py-8 sm:px-6 lg:px-10">
+        <div className="max-w-[1600px]">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl font-semibold tracking-tight">Admin</h1>
+            <Badge>Owner only</Badge>
+          </div>
+          <p className="mt-1 text-sm text-ink-muted">Bot health, premium access and every server Nexus runs in.</p>
+
+          <nav className="mt-6 flex gap-1 overflow-x-auto border-b [scrollbar-width:none]">
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={cn(
+                  '-mb-px flex shrink-0 items-center gap-2 border-b-2 px-3 py-2.5 text-sm transition-colors',
+                  tab === t.id
+                    ? 'border-white font-medium text-white'
+                    : 'border-transparent text-ink-muted hover:text-ink',
+                )}
+              >
+                {t.label}
+                {t.count !== undefined && <span className="text-xs text-ink-faint">{t.count}</span>}
+              </button>
+            ))}
+          </nav>
+
+          <div className="mt-6">
+            {tab === 'overview' && <OverviewTab data={overview.data} loading={overview.isLoading} />}
+            {tab === 'premium' && <PremiumTab records={premium.data} loading={premium.isLoading} />}
+            {tab === 'servers' && <ServersTab guilds={guilds.data} loading={guilds.isLoading} />}
+            {tab === 'users' && <UsersTab users={users.data} loading={users.isLoading} />}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------- overview -- */
+
+function OverviewTab({ data, loading }: { data?: AdminOverview; loading: boolean }) {
+  const t = data?.totals;
+  const usage: [string, ReactNode][] = [
+    ['Servers', t && formatNumber(t.servers)],
+    ['Members', t && formatNumber(t.members)],
+    ['Commands run', t && formatNumber(t.commands)],
+    ['Registered users', t && formatNumber(t.registeredUsers)],
+    ['Active premium', t && `${formatNumber(t.premiumActive)} of ${formatNumber(t.premiumTotal)}`],
+    ['Custom commands', t && formatNumber(t.customCommands)],
+  ];
+  const health: [string, ReactNode][] = [
+    [
+      'Status',
+      data && (
+        <span className="inline-flex items-center gap-1.5">
+          <span className={cn('h-2 w-2 rounded-full', data.bot.ready ? 'bg-emerald-400' : 'bg-red-400')} />
+          {data.bot.ready ? 'Online' : 'Not ready'}
+        </span>
+      ),
+    ],
+    ['Gateway ping', data && `${data.bot.ping} ms`],
+    ['Uptime', data && formatDuration(data.bot.uptimeMs)],
+    ['Memory', data && `${data.system.memory.rssMb} MB`],
+    ['CPU', data && `${data.system.cpu.usagePercent}%`],
+  ];
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-3">
+      <Section title="Usage" className="lg:col-span-2">
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-white/[0.08] sm:grid-cols-3">
+          {usage.map(([label, value]) => (
+            <div key={label} className="bg-surface-soft p-5">
+              <div className="text-xs text-ink-muted">{label}</div>
+              {loading ? (
+                <Skeleton className="mt-2 h-7 w-20" />
+              ) : (
+                <div className="mt-1 text-2xl font-semibold tracking-tight">{value ?? '—'}</div>
+              )}
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      <Section title="Bot health">
+        <GlassCard className="divide-y">
+          {health.map(([label, value]) => (
+            <div key={label} className="flex items-center justify-between px-5 py-3 text-sm">
+              <span className="text-ink-muted">{label}</span>
+              {loading ? <Skeleton className="h-4 w-16" /> : <span className="font-medium">{value ?? '—'}</span>}
+            </div>
+          ))}
+        </GlassCard>
+      </Section>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------- premium -- */
+
+function PremiumTab({ records, loading }: { records?: PremiumRecord[]; loading: boolean }) {
+  const toast = useToast();
+  const qc = useQueryClient();
+  const [userId, setUserId] = useState('');
+  const [days, setDays] = useState('0');
+
+  const invalidate = () => void qc.invalidateQueries({ queryKey: ['admin'] });
 
   const grant = useMutation({
     mutationFn: (body: { userId: string; days: number }) => api.post('/admin/premium', body).then((r) => r.data),
@@ -137,12 +237,6 @@ export default function Admin() {
     onError: (err) => toast(extractApiError(err).message, 'error'),
   });
 
-  // Owner gate — non-owners are bounced back to their server list. Placed after
-  // all hooks so hook order stays stable across renders (Rules of Hooks).
-  if (user && !user.isOwner) return <Navigate to="/servers" replace />;
-
-  const t = overview.data?.totals;
-
   const onGrant = (e: FormEvent) => {
     e.preventDefault();
     const id = userId.trim();
@@ -154,259 +248,248 @@ export default function Admin() {
   };
 
   return (
-    <div className="mx-auto min-h-screen max-w-6xl px-6 py-10">
-      {/* Top bar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <Logo className="h-7 w-auto text-white" />
-          <span className="text-lg font-semibold tracking-tight">Nexus Service</span>
-          <Badge variant="brand" className="ml-1">
-            <ShieldCheck className="h-3 w-3" /> Admin
-          </Badge>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => navigate('/servers')}>
-            <ArrowLeft className="h-4 w-4" /> Servers
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={async () => {
-              await logout();
-              navigate('/');
-            }}
-          >
-            <LogOut className="h-4 w-4" /> Log out
-          </Button>
-        </div>
-      </div>
-
-      <div className="mt-10">
-        <h1 className="text-3xl font-bold tracking-tight">Admin panel</h1>
-        <p className="mt-2 text-ink-muted">Manage premium, and monitor every server the bot runs in.</p>
-      </div>
-
-      {/* Stat grid */}
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard icon={Server} label="Servers" value={t ? formatNumber(t.servers) : '—'} loading={overview.isLoading} />
-        <StatCard icon={Users} label="Members" value={t ? formatNumber(t.members) : '—'} loading={overview.isLoading} />
-        <StatCard
-          icon={CommandIcon}
-          label="Commands"
-          value={t ? formatNumber(t.commands) : '—'}
-          loading={overview.isLoading}
-        />
-        <StatCard
-          icon={Crown}
-          label="Active premium"
-          value={t ? formatNumber(t.premiumActive) : '—'}
-          hint={t ? `${t.customCommands} custom commands` : undefined}
-          accent="text-amber-300"
-          loading={overview.isLoading}
-        />
-        <StatCard
-          icon={Users}
-          label="Registered users"
-          value={t ? formatNumber(t.registeredUsers) : '—'}
-          loading={overview.isLoading}
-        />
-        <StatCard
-          icon={Gauge}
-          label="Gateway ping"
-          value={overview.data ? `${overview.data.bot.ping} ms` : '—'}
-          loading={overview.isLoading}
-        />
-        <StatCard
-          icon={Clock}
-          label="Uptime"
-          value={overview.data ? formatDuration(overview.data.bot.uptimeMs) : '—'}
-          loading={overview.isLoading}
-        />
-        <StatCard
-          icon={Activity}
-          label="Memory"
-          value={overview.data ? `${overview.data.system.memory.rssMb} MB` : '—'}
-          hint={overview.data ? `${overview.data.system.cpu.usagePercent}% CPU` : undefined}
-          loading={overview.isLoading}
-        />
-      </div>
-
-      {/* Premium management */}
-      <div className="mt-10">
-        <div className="mb-4 flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-amber-300" />
-          <h2 className="text-lg font-semibold">Premium</h2>
-        </div>
-
+    <div className="space-y-6">
+      <Section title="Grant premium">
         <GlassCard className="p-5">
           <form onSubmit={onGrant} className="flex flex-col gap-3 sm:flex-row sm:items-end">
-            <div className="flex-1">
-              <label className="mb-1.5 block text-xs font-medium text-ink-muted">Discord user ID</label>
+            <label className="flex-1">
+              <span className="mb-1.5 block text-xs text-ink-muted">Discord user ID</span>
               <Input
                 value={userId}
                 onChange={(e) => setUserId(e.target.value)}
                 placeholder="e.g. 427799772359819264"
                 inputMode="numeric"
               />
-            </div>
-            <div className="w-full sm:w-40">
-              <label className="mb-1.5 block text-xs font-medium text-ink-muted">Days (0 = lifetime)</label>
+            </label>
+            <label className="w-full sm:w-44">
+              <span className="mb-1.5 block text-xs text-ink-muted">Days (0 = lifetime)</span>
               <Input
                 value={days}
                 onChange={(e) => setDays(e.target.value.replace(/[^0-9]/g, ''))}
                 placeholder="0"
                 inputMode="numeric"
               />
-            </div>
-            <Button type="submit" loading={grant.isPending} className="sm:w-auto">
+            </label>
+            <Button type="submit" loading={grant.isPending}>
               <Plus className="h-4 w-4" /> Grant
             </Button>
           </form>
-          <p className="mt-2 text-xs text-ink-faint">
-            Find a user&apos;s ID by enabling Developer Mode in Discord, then right-clicking them → Copy User ID.
+          <p className="mt-3 text-xs text-ink-faint">
+            In Discord, turn on Developer Mode, then right-click a user → Copy User ID.
           </p>
         </GlassCard>
+      </Section>
 
-        <div className="mt-4 space-y-2">
-          {premium.isLoading &&
-            Array.from({ length: 3 }).map((_, i) => (
-              <GlassCard key={i} className="flex items-center gap-3 p-4">
-                <Skeleton className="h-10 w-10 rounded-full" />
-                <Skeleton className="h-4 w-40" />
-              </GlassCard>
-            ))}
-
-          {!premium.isLoading && premium.data && premium.data.length === 0 && (
-            <GlassCard className="p-8 text-center text-ink-muted">No premium users yet.</GlassCard>
-          )}
-
-          {premium.data?.map((p, i) => (
-            <motion.div
-              key={p.userId}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: i * 0.03 }}
-            >
-              <GlassCard className="flex flex-wrap items-center gap-3 p-4">
-                {p.avatar ? (
-                  <img src={p.avatar} alt="" className="h-10 w-10 rounded-full" />
+      <Section title="Premium users">
+        <Table
+          head={['User', 'Status', 'Custom commands', '']}
+          loading={loading}
+          empty={records?.length === 0 ? 'No premium users yet.' : undefined}
+        >
+          {records?.map((p) => (
+            <tr key={p.userId}>
+              <td>
+                <Person name={p.username} avatar={p.avatar} sub={p.userId} />
+              </td>
+              <td>
+                {p.lifetime ? (
+                  <Badge variant="warning">
+                    <Crown className="h-3 w-3" /> Lifetime
+                  </Badge>
+                ) : p.active ? (
+                  <Badge variant="success">Expires {formatRelativeTime(p.expiresAt)}</Badge>
                 ) : (
-                  <div className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-xs font-semibold">
-                    {initialsOf(p.username)}
-                  </div>
+                  <Badge variant="danger">Expired</Badge>
                 )}
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate font-medium">{p.username}</span>
-                    {p.lifetime ? (
-                      <Badge variant="warning">
-                        <Crown className="h-3 w-3" /> Lifetime
-                      </Badge>
-                    ) : p.active ? (
-                      <Badge variant="success">Expires {formatRelativeTime(p.expiresAt)}</Badge>
-                    ) : (
-                      <Badge variant="danger">Expired</Badge>
-                    )}
-                  </div>
-                  <div className="mt-0.5 truncate text-xs text-ink-faint">
-                    {p.userId} · {p.customCommands} custom command{p.customCommands === 1 ? '' : 's'}
-                  </div>
-                </div>
+              </td>
+              <td className="text-ink-muted">{p.customCommands}</td>
+              <td className="text-right">
                 <Button
-                  variant="danger"
+                  variant="ghost"
                   size="sm"
+                  className="text-red-300 hover:bg-red-500/10 hover:text-red-200"
                   loading={revoke.isPending && revoke.variables === p.userId}
                   onClick={() => revoke.mutate(p.userId)}
                 >
-                  <Trash2 className="h-4 w-4" /> Revoke
+                  Revoke
                 </Button>
-              </GlassCard>
-            </motion.div>
+              </td>
+            </tr>
           ))}
+        </Table>
+      </Section>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------- servers -- */
+
+function ServersTab({ guilds, loading }: { guilds?: AdminGuild[]; loading: boolean }) {
+  const [q, setQ] = useState('');
+  const rows = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    return [...(guilds ?? [])]
+      .filter((g) => !term || g.name.toLowerCase().includes(term) || g.id.includes(term))
+      .sort((a, b) => b.memberCount - a.memberCount);
+  }, [guilds, q]);
+
+  return (
+    <Section
+      title="Servers"
+      action={
+        <div className="relative w-full sm:w-64">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search servers" className="h-9 pl-9" />
         </div>
-      </div>
+      }
+    >
+      <Table
+        head={['Server', 'Members', 'Joined', 'Server ID']}
+        loading={loading}
+        empty={rows.length === 0 && !loading ? 'No servers match.' : undefined}
+      >
+        {rows.map((g) => (
+          <tr key={g.id}>
+            <td>
+              <Person name={g.name} avatar={g.icon} square />
+            </td>
+            <td>{formatNumber(g.memberCount)}</td>
+            <td className="text-ink-muted">{g.joinedAt ? formatRelativeTime(g.joinedAt) : '—'}</td>
+            <td className="font-mono text-xs text-ink-faint">{g.id}</td>
+          </tr>
+        ))}
+      </Table>
+    </Section>
+  );
+}
 
-      {/* Servers */}
-      <div className="mt-10">
-        <div className="mb-4 flex items-center gap-2">
-          <Server className="h-5 w-5 text-brand-300" />
-          <h2 className="text-lg font-semibold">Servers</h2>
-          {guilds.data && <span className="text-sm text-ink-faint">({guilds.data.length})</span>}
-        </div>
+/* ---------------------------------------------------------------- users -- */
 
-        {guilds.isLoading ? (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <GlassCard key={i} className="flex items-center gap-3 p-4">
-                <Skeleton className="h-10 w-10 rounded-xl" />
-                <Skeleton className="h-4 w-32" />
-              </GlassCard>
-            ))}
-          </div>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {guilds.data?.map((g) => (
-              <GlassCard key={g.id} className="flex items-center gap-3 p-4">
-                {g.icon ? (
-                  <img src={g.icon} alt="" className="h-10 w-10 rounded-xl" />
-                ) : (
-                  <div className="grid h-10 w-10 place-items-center rounded-xl bg-white/10 text-xs font-semibold">
-                    {initialsOf(g.name)}
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <div className="truncate font-medium">{g.name}</div>
-                  <div className="text-xs text-ink-faint">{formatNumber(g.memberCount)} members</div>
-                </div>
-              </GlassCard>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Recent users */}
-      <div className="mt-10">
-        <div className="mb-4 flex items-center gap-2">
-          <Users className="h-5 w-5 text-brand-300" />
-          <h2 className="text-lg font-semibold">Recent logins</h2>
-        </div>
-
-        <GlassCard className="divide-y divide-white/5">
-          {users.isLoading &&
-            Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-3 p-4">
-                <Skeleton className="h-9 w-9 rounded-full" />
-                <Skeleton className="h-4 w-40" />
-              </div>
-            ))}
-          {users.data?.slice(0, 12).map((u) => (
-            <div key={u.discordId} className="flex items-center gap-3 p-4">
-              {u.avatar ? (
-                <img src={u.avatar} alt="" className="h-9 w-9 rounded-full" />
+function UsersTab({ users, loading }: { users?: AdminUser[]; loading: boolean }) {
+  return (
+    <Section title="Recent logins">
+      <Table
+        head={['User', 'Plan', 'Last seen', 'User ID']}
+        loading={loading}
+        empty={users?.length === 0 ? 'No users yet.' : undefined}
+      >
+        {users?.map((u) => (
+          <tr key={u.discordId}>
+            <td>
+              <Person name={u.globalName || u.username} avatar={u.avatar} sub={u.globalName ? u.username : undefined} />
+            </td>
+            <td>
+              {u.premium ? (
+                <Badge variant="warning">
+                  <Crown className="h-3 w-3" /> Premium
+                </Badge>
               ) : (
-                <div className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-xs font-semibold">
-                  {initialsOf(u.globalName || u.username)}
-                </div>
+                <span className="text-ink-faint">Free</span>
               )}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate font-medium">{u.globalName || u.username}</span>
-                  {u.premium && (
-                    <Badge variant="warning">
-                      <Crown className="h-3 w-3" /> Premium
-                    </Badge>
-                  )}
-                </div>
-                <div className="truncate text-xs text-ink-faint">
-                  {u.lastLoginAt ? `Last seen ${formatRelativeTime(u.lastLoginAt)}` : u.discordId}
-                </div>
-              </div>
-            </div>
-          ))}
-          {!users.isLoading && users.data && users.data.length === 0 && (
-            <div className="p-8 text-center text-ink-muted">No users yet.</div>
+            </td>
+            <td className="text-ink-muted">{u.lastLoginAt ? formatRelativeTime(u.lastLoginAt) : '—'}</td>
+            <td className="font-mono text-xs text-ink-faint">{u.discordId}</td>
+          </tr>
+        ))}
+      </Table>
+    </Section>
+  );
+}
+
+/* ------------------------------------------------------------- building -- */
+
+function Section({
+  title,
+  action,
+  className,
+  children,
+}: {
+  title: string;
+  action?: ReactNode;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className={className}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-sm font-medium text-ink-muted">{title}</h2>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Table({
+  head,
+  loading,
+  empty,
+  children,
+}: {
+  head: string[];
+  loading: boolean;
+  empty?: string;
+  children: ReactNode;
+}) {
+  return (
+    <GlassCard className="overflow-x-auto">
+      <table className="w-full text-left text-sm [&_td]:px-5 [&_td]:py-3 [&_th]:px-5 [&_th]:py-2.5 [&_tr]:border-b last:[&_tbody_tr]:border-0">
+        <thead>
+          <tr>
+            {head.map((h, i) => (
+              <th key={i} className="whitespace-nowrap text-xs font-medium text-ink-faint">
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {loading
+            ? Array.from({ length: 4 }).map((_, i) => (
+                <tr key={i}>
+                  <td colSpan={head.length}>
+                    <Skeleton className="h-5 w-48" />
+                  </td>
+                </tr>
+              ))
+            : children}
+          {!loading && empty && (
+            <tr>
+              <td colSpan={head.length} className="py-10 text-center text-ink-muted">
+                {empty}
+              </td>
+            </tr>
           )}
-        </GlassCard>
+        </tbody>
+      </table>
+    </GlassCard>
+  );
+}
+
+function Person({
+  name,
+  avatar,
+  sub,
+  square,
+}: {
+  name: string;
+  avatar: string | null;
+  sub?: string;
+  square?: boolean;
+}) {
+  const shape = square ? 'rounded-lg' : 'rounded-full';
+  return (
+    <div className="flex min-w-[12rem] items-center gap-3">
+      {avatar ? (
+        <img src={avatar} alt="" className={cn('h-8 w-8 shrink-0', shape)} />
+      ) : (
+        <div className={cn('grid h-8 w-8 shrink-0 place-items-center bg-white/10 text-xs font-semibold', shape)}>
+          {initialsOf(name)}
+        </div>
+      )}
+      <div className="min-w-0">
+        <div className="truncate font-medium">{name}</div>
+        {sub && <div className="truncate text-xs text-ink-faint">{sub}</div>}
       </div>
     </div>
   );

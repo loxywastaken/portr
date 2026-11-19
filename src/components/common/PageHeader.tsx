@@ -10,13 +10,9 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, description, icon: Icon, actions }: PageHeaderProps) {
   return (
-    <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+    <div className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b pb-5">
       <div className="flex items-start gap-3">
-        {Icon && (
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-brand-500/15 text-brand-300">
-            <Icon className="h-5 w-5" />
-          </div>
-        )}
+        {Icon && <Icon className="mt-1 h-5 w-5 text-ink-muted" />}
         <div>
           <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
           {description && <p className="mt-0.5 text-sm text-ink-muted">{description}</p>}

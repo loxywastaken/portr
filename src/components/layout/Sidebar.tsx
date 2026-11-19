@@ -65,7 +65,7 @@ export function Sidebar({ guildId, mobileOpen, onClose }: SidebarProps) {
       />
       <aside
         className={cn(
-          'fixed left-0 top-0 z-40 flex h-screen w-64 shrink-0 flex-col border-r border-white/10 bg-surface-soft/80 backdrop-blur-xl transition-transform duration-300',
+          'fixed left-0 top-0 z-40 flex h-screen w-64 shrink-0 flex-col border-r bg-surface-soft transition-transform duration-300',
           'lg:sticky lg:translate-x-0',
           mobileOpen ? 'translate-x-0' : '-translate-x-full',
         )}
@@ -75,7 +75,7 @@ export function Sidebar({ guildId, mobileOpen, onClose }: SidebarProps) {
           <span className="text-lg font-semibold tracking-tight">Nexus Service</span>
         </div>
 
-        <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
+        <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto border-t px-3 py-4">
           {items.map((item) => (
             <NavLink
               key={item.to}
@@ -84,10 +84,10 @@ export function Sidebar({ guildId, mobileOpen, onClose }: SidebarProps) {
               onClick={onClose}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition',
+                  'flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
                   isActive
-                    ? 'bg-brand-500/15 text-white ring-1 ring-inset ring-brand-500/25'
-                    : 'text-ink-muted hover:bg-white/5 hover:text-ink',
+                    ? 'bg-white/[0.07] font-medium text-white'
+                    : 'text-ink-muted hover:bg-white/[0.04] hover:text-ink',
                 )
               }
             >
