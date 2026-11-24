@@ -13,6 +13,7 @@ const ServerSelect = lazy(() => import('./pages/ServerSelect'));
 const Admin = lazy(() => import('./pages/Admin'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const Updates = lazy(() => import('./pages/Updates'));
+const Privacy = lazy(() => import('./pages/Privacy'));
 const Overview = lazy(() => import('./pages/dashboard/Overview'));
 const Welcome = lazy(() => import('./pages/dashboard/Welcome'));
 const Moderation = lazy(() => import('./pages/dashboard/Moderation'));
@@ -40,6 +41,7 @@ export default function App() {
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/updates" element={<Updates />} />
+        <Route path="/privacy" element={<Privacy />} />
         <Route path="/premium" element={<PremiumInfo />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route

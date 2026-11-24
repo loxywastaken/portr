@@ -90,7 +90,10 @@ export default function Landing() {
 
       <footer className="border-t border-white/10 py-6 text-center text-xs text-ink-faint">
         Nexus Service · made by <span className="text-ink-muted">zxme</span> &amp;{' '}
-        <span className="text-ink-muted">veer</span>
+        <span className="text-ink-muted">veer</span> ·{' '}
+        <Link to="/privacy" className="hover:text-ink-muted">
+          Privacy
+        </Link>
       </footer>
     </div>
   );
