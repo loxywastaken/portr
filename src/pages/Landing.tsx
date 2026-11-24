@@ -93,6 +93,10 @@ export default function Landing() {
         <span className="text-ink-muted">veer</span> ·{' '}
         <Link to="/privacy" className="hover:text-ink-muted">
           Privacy
+        </Link>{' '}
+        ·{' '}
+        <Link to="/terms" className="hover:text-ink-muted">
+          Terms
         </Link>
       </footer>
     </div>
