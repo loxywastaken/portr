@@ -110,7 +110,8 @@ export default function Privacy() {
           <p>
             Data is used only to run Nexus features inside the server it came from and to show them on the dashboard.
             We do not sell or rent data, share it with advertisers, or give it to third parties, except where the law
-            requires it. Data is stored on our own server hosting the bot.
+            requires it. Data is stored in a MongoDB Atlas database, which is encrypted at rest and only reached over
+            encrypted (TLS) connections.
           </p>
           <p>
             Premium is paid through PayPal outside of Nexus. We never see or store your payment details.
