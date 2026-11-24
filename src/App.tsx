@@ -15,6 +15,7 @@ const NotFound = lazy(() => import('./pages/NotFound'));
 const Updates = lazy(() => import('./pages/Updates'));
 const Privacy = lazy(() => import('./pages/Privacy'));
 const Terms = lazy(() => import('./pages/Terms'));
+const Review = lazy(() => import('./pages/Review'));
 const Overview = lazy(() => import('./pages/dashboard/Overview'));
 const Welcome = lazy(() => import('./pages/dashboard/Welcome'));
 const Moderation = lazy(() => import('./pages/dashboard/Moderation'));
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="/updates" element={<Updates />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/terms" element={<Terms />} />
+        <Route path="/review" element={<Review />} />
         <Route path="/premium" element={<PremiumInfo />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route
